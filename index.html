@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-
 <meta charset="UTF-8">
 <title>Relatório Fotográfico Ambiental - Versão 1.0</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+<!-- Bibliotecas locais (baixar os arquivos e colocar na mesma pasta) -->
+<link rel="stylesheet" href="leaflet.css" />
+<script src="leaflet.js"></script>
+<script src="leaflet-omnivore.min.js"></script>
+<script src="jszip.min.js"></script>
+<script src="exif-js.js"></script>
 
 <style>
 body { font-family: Arial, sans-serif; margin: 20px auto; max-width: 900px; color: #333;}
@@ -29,7 +29,7 @@ button { background:#006400; color:#fff; border:none; padding:10px; border-radiu
 button:hover { background:#004d00;}
 
 #map-container { position:relative; margin:20px 0; border:1px solid #000;}
-#map { height:450px;}
+#map { height:450px; background:#f0f0f0; } /* fundo cinza offline */
 #mapInset { height:150px; width:150px; position:absolute; bottom:20px; right:20px; border:2px solid black; background:#fff;}
 
 .photo { border:1px solid #ddd; padding:15px; margin:15px 0; background:#f9f9f9;}
@@ -44,6 +44,19 @@ button, .no-print { display:none !important;}
 body { font-family:"Times New Roman"; font-size:11pt;}
 textarea { display:none;}
 .print-only-text { display:block; white-space:pre-wrap;}
+}
+
+/* Mensagem de fallback para tiles offline */
+.offline-tiles-message {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 1000;
 }
 </style>
 </head>
@@ -134,18 +147,49 @@ textarea { display:none;}
 
 <script>
 
-// MAPA
+// MAPA - sem tiles online, apenas um fundo simples e camadas vetoriais
 let map = L.map('map').setView([-14.7,-39.3],10);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+// Sem tiles externos: usamos um fundo vazio com cor de fundo via CSS
+// Adiciona uma mensagem informativa sobre a ausência de tiles
+let msg = L.control({position: 'bottomleft'});
+msg.onAdd = function() {
+    let div = L.DomUtil.create('div', 'offline-tiles-message');
+    div.innerHTML = 'Mapa offline - sem imagens de satélite/ruas';
+    return div;
+};
+msg.addTo(map);
 
 let insetMap = L.map('mapInset',{zoomControl:false, attributionControl:false});
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(insetMap);
+// Inset também sem tiles
+let msgInset = L.control({position: 'bottomleft'});
+msgInset.onAdd = function() {
+    let div = L.DomUtil.create('div', 'offline-tiles-message');
+    div.innerHTML = 'Sem tiles';
+    return div;
+};
+msgInset.addTo(insetMap);
 
-omnivore.kml('UCs_NGI Ilheus.kml')
-.on('ready',function(){ insetMap.fitBounds(this.getBounds()); })
-.addTo(insetMap);
-
-omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
+// Tentar carregar KML local
+let kmlLayer = null;
+try {
+    kmlLayer = omnivore.kml('UCs_NGI Ilheus.kml')
+        .on('ready', function() {
+            insetMap.fitBounds(this.getBounds());
+        })
+        .addTo(insetMap);
+    omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
+} catch(e) {
+    console.warn('Arquivo KML não encontrado ou erro ao carregar:', e);
+    // Adiciona mensagem de erro no mapa
+    let errorMsg = L.control({position: 'topright'});
+    errorMsg.onAdd = function() {
+        let div = L.DomUtil.create('div', 'offline-tiles-message');
+        div.innerHTML = 'KML não encontrado';
+        div.style.background = 'red';
+        return div;
+    };
+    errorMsg.addTo(map);
+}
 
 let photoMarkersGroup = L.featureGroup().addTo(map);
 let insetMarkersGroup = L.featureGroup().addTo(insetMap);
@@ -174,7 +218,6 @@ function abrirCamera(){cameraInput.click();}
 // CONVERSÃO DE COORDENADAS EXIF
 function convertExifToDecimal(dmsArray, ref){
     if(!dmsArray || dmsArray.length < 3) return null;
-    
     try {
         let degrees = parseFloat(dmsArray[0]) || 0;
         let minutes = parseFloat(dmsArray[1]) || 0;
@@ -204,7 +247,6 @@ cameraInput.addEventListener('change', function(e) {
                         let gpsLatRef = EXIF.getTag(this, "GPSLatitudeRef");
                         let gpsLong = EXIF.getTag(this, "GPSLongitude");
                         let gpsLongRef = EXIF.getTag(this, "GPSLongitudeRef");
-                        
                         if(gpsLat && gpsLatRef) lat = convertExifToDecimal(gpsLat, gpsLatRef);
                         if(gpsLong && gpsLongRef) lon = convertExifToDecimal(gpsLong, gpsLongRef);
                     } catch(err) { console.error(err); }
@@ -274,12 +316,10 @@ function renderizarFotoHtml(imagemUrl, lat, lon, origem, arquivoOriginal){
 function removerFoto(id){
     let i=photosData.findIndex(p=>p.id===id);
     if(i===-1) return;
-    
     let p=photosData[i];
     if(p.marker) photoMarkersGroup.removeLayer(p.marker);
     if(p.insetMarker) insetMarkersGroup.removeLayer(p.insetMarker);
     photosData.splice(i,1);
-    
     let el=document.getElementById("photo-"+id);
     if(el) el.remove();
 }
@@ -312,13 +352,11 @@ function exportKMZ(){
     
     photosData.forEach((p,i)=>{
         if(!p.lat || !p.lon) return;
-        
         let imgName = `foto${i+1}.jpg`;
         if(p.imagemUrl && p.imagemUrl.startsWith('data:image')) {
             let base64Data = p.imagemUrl.split(',')[1];
             zip.file(imgName, base64Data, {base64: true});
         }
-        
         kml+=`
         <Placemark>
             <name>Figura ${i+1}</name>
@@ -332,10 +370,8 @@ function exportKMZ(){
             </Point>
         </Placemark>`;
     });
-    
     kml+=`</Document></kml>`;
     zip.file("doc.kml", kml);
-    
     zip.generateAsync({type:"blob"}).then(content=>{
         let a=document.createElement("a");
         a.href=URL.createObjectURL(content);
