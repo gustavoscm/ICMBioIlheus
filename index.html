@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Relatório Fotográfico Ambiental</title>
+<title>Relatório Fotográfico Ambiental - Versão 1.0</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -11,64 +11,131 @@
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 
 <style>
-/* Estilos Gerais */
-body { font-family: Arial, sans-serif; margin: 20px auto; max-width: 900px; color: #333; }
+/* Estilos Gerais (Tela) */
+body { 
+    font-family: Arial, sans-serif; 
+    margin: 20px auto; 
+    max-width: 900px;
+    color: #333;
+}
 h2, h3 { color: #006400; }
-
 .header { 
     display: flex; 
     align-items: center; 
     border-bottom: 3px solid #006400; 
     padding-bottom: 15px; 
-    margin-bottom: 20px; 
+    margin-bottom: 20px;
 }
 .header img { height: 70px; margin-right: 20px; }
-.header div { display: flex; flex-direction: column; flex-grow: 1; }
-.header h2 { margin: 0; font-size: 24px; display: flex; align-items: center; justify-content: space-between; }
-
-/* Estilo do Contador de Versão */
-.version-tag {
-    font-size: 11px;
-    font-weight: bold;
-    color: #555;
-    background: #e0e0e0;
-    padding: 3px 8px;
-    border-radius: 12px;
-}
-
-.header p { margin: 0; font-size: 14px; color: #555; font-weight: bold; }
+.header div { display: flex; flex-direction: column; }
+.header h2 { margin: 0 0 5px 0; font-size: 24px;}
+.header p { margin: 0; font-size: 14px; color: #555; font-weight: bold;}
 
 .form-group { margin-bottom: 15px; }
 .form-group label { font-weight: bold; display: block; margin-bottom: 5px; }
-.form-group input, .form-group select, .form-group textarea {
-    width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+.form-group input[type="text"], 
+.form-group input[type="date"], 
+.form-group input[type="time"], 
+.form-group select, 
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
 }
 .form-inline { display: flex; gap: 15px; }
 .form-inline .form-group { flex: 1; }
 
-button { background-color: #006400; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-bottom: 10px; }
+button {
+    background-color: #006400;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-right: 5px;
+    margin-bottom: 10px;
+}
 button:hover { background-color: #004d00; }
 
 #map-container { position: relative; margin: 20px 0; border: 1px solid #000; }
-#map { height: 450px; width: 100%; z-index: 1; }
-#mapInset { height: 150px; width: 150px; position: absolute; bottom: 20px; right: 20px; border: 2px solid black; z-index: 1000; background: white; }
+#map { height: 450px; width: 100%; z-index: 1;}
+#mapInset {
+    height: 150px; 
+    width: 150px; 
+    position: absolute; 
+    bottom: 20px; 
+    right: 20px; 
+    border: 2px solid black; 
+    z-index: 1000;
+    background: white;
+}
 
-.photo { border: 1px solid #ddd; padding: 15px; margin: 15px 0; background: #f9f9f9; border-radius: 5px; }
-.photo b { color: #006400; font-size: 16px; }
-.photo img { max-width: 100%; height: auto; margin: 10px 0; border: 1px solid #ccc; display: block; }
-.photo .loc-info { font-size: 12px; font-weight: bold; padding: 5px; border-radius: 3px; display: inline-block; margin-bottom: 10px; }
+.photo { border: 1px solid #ddd; padding: 15px; margin: 15px 0; background: #f9f9f9; border-radius: 5px;}
+.photo b { color: #006400; font-size: 16px;}
+.photo img { max-width: 100%; height: auto; margin: 10px 0; border: 1px solid #ccc;}
+.photo input { width: 100%; padding: 5px; margin-top: 5px;}
+
+.marker-tooltip { background: rgba(255, 255, 255, 0.9); border: 1px solid #000; font-weight: bold; color: #000; }
 
 .print-only-text { display: none; }
 
+/* Estilos de Impressão (Relatório Técnico) */
 @media print {
-    @page { margin: 15mm; size: A4 portrait; }
-    body { margin: 0; font-family: "Times New Roman", serif; font-size: 11pt; }
-    button, .no-print, .version-tag { display: none !important; }
-    .header { border-bottom: 2px solid #000; }
-    input, textarea, select { border: none !important; appearance: none; padding: 0 !important; }
-    .print-only-text { display: block; white-space: pre-wrap; }
-    textarea { display: none; }
-    .photo { page-break-inside: avoid; border-top: 1px solid #000; border-radius: 0; background: none; }
+    @page { margin: 15mm; size: A4 portrait;}
+    body { 
+        margin: 0; 
+        max-width: 100%; 
+        font-family: "Times New Roman", Times, serif; 
+        font-size: 11pt;
+        color: #000;
+    }
+    
+    button, .no-print { display: none !important; }
+    
+    .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;}
+    .header h2 { color: #000; font-size: 18pt; margin-bottom: 2px;}
+    .header p { color: #000; font-size: 12pt;}
+    h3 { color: #000; border-bottom: 1px solid #000; padding-bottom: 3px; font-size: 14pt; margin-top: 20px;}
+    
+    input, select, textarea {
+        border: none !important;
+        background: transparent !important;
+        -webkit-appearance: none;
+        appearance: none;
+        padding: 0 !important;
+        margin: 0 !important;
+        color: #000 !important;
+        font-family: "Times New Roman", Times, serif;
+        font-size: 11pt;
+        width: 100% !important;
+        resize: none;
+        overflow: hidden;
+    }
+    
+    textarea { display: none; } 
+    .print-only-text { display: block; white-space: pre-wrap; margin-top: 5px;}
+    
+    .form-group label { display: inline-block; margin-bottom: 2px;}
+    .form-group { margin-bottom: 10px; page-break-inside: avoid;}
+    
+    #map-container { border: 1px solid #000; page-break-inside: avoid; margin-bottom: 20px;}
+    #map { height: 14cm !important; }
+    
+    .photo { 
+        page-break-inside: avoid; 
+        border: none; 
+        border-top: 1px solid #000; 
+        background: transparent; 
+        padding: 10px 0;
+        margin: 10px 0;
+        border-radius: 0;
+    }
+    .photo img { max-height: 400px; width: auto; display: block;}
+    .photo input { border-bottom: 1px dashed #000 !important; display: inline-block;}
 }
 </style>
 </head>
@@ -78,10 +145,7 @@ button:hover { background-color: #004d00; }
 <div class="header">
     <img src="Logo_ICMBio_2011_Colorida.png" alt="Logo ICMBio">
     <div>
-        <h2>
-            Relatório Fotográfico Ambiental
-            <span class="version-tag">v2.4.1 (Android Chrome)</span>
-        </h2>
+        <h2>Relatório Fotográfico Ambiental</h2>
         <p>Instituto Chico Mendes de Conservação da Biodiversidade</p>
     </div>
 </div>
@@ -116,45 +180,112 @@ button:hover { background-color: #004d00; }
     <input type="text" id="local">
 </div>
 
-<hr>
+<hr style="border:0; border-top:1px solid #ccc; margin: 20px 0;">
+
+<h3>Informações sobre o Processo</h3>
+
+<div class="form-inline">
+    <div class="form-group" style="flex: 0.4;">
+        <label>Número do processo:</label>
+        <input type="text" id="processo">
+    </div>
+    <div class="form-group" style="flex: 0.6;">
+        <label>Assunto:</label>
+        <select id="assunto">
+            <option>Área embargada</option>
+            <option>Auto de Infração</option>
+            <option>Autorização Direta</option>
+            <option>Regularização Fundiária</option>
+            <option>Denúncia</option>
+        </select>
+    </div>
+</div>
+
+<div class="form-group">
+    <label>Descrição da Atividade / Fato observado:</label>
+    <textarea id="descricao" rows="4"></textarea>
+    <div class="print-only-text" id="print-descricao"></div>
+</div>
 
 <h3>Mapa de Localização Fotográfica</h3>
+
 <div id="map-container">
     <div id="map"></div>
     <div id="mapInset"></div>
 </div>
 
 <h3>Registro Fotográfico</h3>
+
 <div class="no-print">
-    <button onclick="document.getElementById('fileInput').click()">Anexar da Galeria</button>
-    <button onclick="document.getElementById('cameraInput').click()" style="background-color: #005580;">📷 Tirar Foto</button>
+    <button onclick="abrirGaleria()">Anexar Arquivo (Galeria)</button>
+    <button onclick="abrirCamera()" style="background-color: #005580;">📷 Tirar Foto na Hora</button>
     
-    <input type="file" id="fileInput" multiple accept="image/*" style="display:none" onchange="processarArquivos(this.files, false)">
-    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="processarArquivos(this.files, true)">
+    <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
     
-    <p style="font-size:11px; color: #666;">* Fotos da galeria: o sistema tentará extrair o GPS dos metadados originais do ficheiro.</p>
+    <p style="font-size:12px; color:#666;">
+        * O sistema prioriza as coordenadas do arquivo (EXIF). Caso não existam (ex: fotos tiradas na hora), utilizará o GPS do aparelho.
+    </p>
 </div>
 
 <div id="photoList"></div>
 
+<hr class="no-print" style="border:0; border-top:1px solid #ccc; margin: 20px 0;">
+
 <div class="no-print">
     <button onclick="imprimirRelatorio()">Gerar Relatório PDF</button>
-    <button onclick="exportKMZ()">Exportar KMZ</button>
+    <button onclick="exportKMZ()">Exportar KML/KMZ</button>
 </div>
 
 <script>
+// Inicialização dos Mapas
 let map = L.map('map').setView([-14.7, -39.3], 10);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+L.control.scale({metric: true, imperial: false, position: 'bottomleft'}).addTo(map);
 
-let insetMap = L.map('mapInset', { zoomControl: false, attributionControl: false });
+function addGraticule(map) {
+    let graticuleLayer = L.layerGroup().addTo(map);
+    function draw() {
+        graticuleLayer.clearLayers();
+        let bounds = map.getBounds();
+        let zoom = map.getZoom();
+        let step = zoom > 14 ? 0.01 : (zoom > 10 ? 0.05 : (zoom > 8 ? 0.1 : 0.5));
+        let lat1 = Math.floor(bounds.getSouth() / step) * step;
+        let lat2 = Math.ceil(bounds.getNorth() / step) * step;
+        let lon1 = Math.floor(bounds.getWest() / step) * step;
+        let lon2 = Math.ceil(bounds.getEast() / step) * step;
+
+        for (let lat = lat1; lat <= lat2; lat += step) {
+            L.polyline([[lat, -180], [lat, 180]], {color: '#000', weight: 1, opacity: 0.3, dashArray: '4,4'}).addTo(graticuleLayer);
+        }
+        for (let lon = lon1; lon <= lon2; lon += step) {
+            L.polyline([[-90, lon], [90, lon]], {color: '#000', weight: 1, opacity: 0.3, dashArray: '4,4'}).addTo(graticuleLayer);
+        }
+    }
+    map.on('moveend', draw);
+    draw();
+}
+addGraticule(map);
+
+let insetMap = L.map('mapInset', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false });
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(insetMap);
+
+omnivore.kml('UCs_NGI Ilheus.kml')
+    .on('ready', function() { insetMap.fitBounds(this.getBounds()); })
+    .addTo(insetMap);
+omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
 
 let photoMarkersGroup = L.featureGroup().addTo(map);
 let insetMarkersGroup = L.featureGroup().addTo(insetMap);
-
 let photosData = [];
+let photoCount = 0;
 
-// Conversão Decimal para Graus, Minutos e Segundos
+window.onload = function() {
+    let now = new Date();
+    document.getElementById('data').value = now.toISOString().split('T')[0];
+    document.getElementById('hora').value = now.toTimeString().substring(0, 5);
+};
+
 function toDMS(deg, lat) {
     let d = Math.floor(Math.abs(deg));
     let m = Math.floor((Math.abs(deg) - d) * 60);
@@ -163,167 +294,153 @@ function toDMS(deg, lat) {
     return `${d}°${m}'${s}" ${dir}`;
 }
 
-// Conversão EXIF para Decimal com prevenção de falhas matematicas
-function convertExifToDecimal(dmsArray, ref) {
-    try {
-        if (!dmsArray || dmsArray.length < 3) return null;
-        
-        const getVal = (val) => {
-            if (val === undefined || val === null) return 0;
-            if (typeof val === 'object' && val.numerator !== undefined) {
-                return val.denominator !== 0 ? val.numerator / val.denominator : 0;
-            }
-            return isNaN(Number(val)) ? 0 : Number(val);
-        };
+// Controles dos botões de Anexo e Câmera
+function abrirGaleria() { document.getElementById('fileInput').click(); }
+function abrirCamera() { document.getElementById('cameraInput').click(); }
 
-        let d = getVal(dmsArray[0]);
-        let m = getVal(dmsArray[1]);
-        let s = getVal(dmsArray[2]);
-        
-        let dd = d + (m / 60) + (s / 3600);
-        if (ref === "S" || ref === "W") dd *= -1;
-        
-        return isNaN(dd) ? null : dd;
-    } catch (e) {
-        return null;
+document.getElementById('fileInput').addEventListener('change', e => processarArquivos(e.target.files));
+document.getElementById('cameraInput').addEventListener('change', e => processarArquivos(e.target.files));
+
+function processarArquivos(files) {
+    if ((photosData.length + files.length) > 15) { 
+        alert("Recomendado máximo de 15 fotos para não sobrecarregar a memória/PDF."); 
     }
-}
 
-// Processamento de Arquivos adaptado para Android + Chrome
-async function processarArquivos(files, isCamera) {
-    if (!files || files.length === 0) return;
+    Array.from(files).forEach(file => {
+        let reader = new FileReader();
+        
+        reader.onload = e => {
+            let base64 = e.target.result;
+            
+            // Tenta puxar do EXIF primeiro
+            EXIF.getData(file, function() {
+                let latExif = EXIF.getTag(this, "GPSLatitude");
+                let lonExif = EXIF.getTag(this, "GPSLongitude");
+                let latRef = EXIF.getTag(this, "GPSLatitudeRef");
+                let lonRef = EXIF.getTag(this, "GPSLongitudeRef");
 
-    for (let file of Array.from(files)) {
-        try {
-            // 1. Ler Base64 primeiro (Isto garante que a foto aparece no relatório mesmo sem GPS)
-            const base64 = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = () => reject("Erro ao ler base64");
-                reader.readAsDataURL(file);
+                function convertExifToDecimal(dmsArray, ref) {
+                    if (!dmsArray || dmsArray.length < 3) return null;
+                    let d = dmsArray[0].valueOf();
+                    let m = dmsArray[1].valueOf();
+                    let s = dmsArray[2].valueOf();
+                    let dd = d + (m / 60) + (s / 3600);
+                    if (ref === "S" || ref === "W") dd *= -1;
+                    return dd;
+                }
+
+                let lat = convertExifToDecimal(latExif, latRef);
+                let lon = convertExifToDecimal(lonExif, lonRef);
+
+                if (lat && lon) {
+                    // Achou no EXIF
+                    renderizarFotoHtml(base64, lat, lon, "Metadados/EXIF da Imagem");
+                } else {
+                    // Não achou no EXIF (comum em fotos tiradas na hora), usa o GPS do dispositivo
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            pos => renderizarFotoHtml(base64, pos.coords.latitude, pos.coords.longitude, "GPS do Dispositivo no momento da captura"),
+                            err => renderizarFotoHtml(base64, null, null, "Não foi possível obter localização")
+                        );
+                    } else {
+                        renderizarFotoHtml(base64, null, null, "Sem localização");
+                    }
+                }
             });
-
-            let lat = null, lon = null, origem = "Sem localização";
-
-            // 2. Ler Binário para EXIF de forma isolada (Não trava se der erro)
-            try {
-                const arrayBuffer = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = () => reject("Erro ao ler ArrayBuffer");
-                    reader.readAsArrayBuffer(file);
-                });
-
-                const exifData = EXIF.readFromBinaryFile(arrayBuffer);
-                if (exifData && exifData.GPSLatitude && exifData.GPSLatitude.length >= 3) {
-                    lat = convertExifToDecimal(exifData.GPSLatitude, exifData.GPSLatitudeRef);
-                    lon = convertExifToDecimal(exifData.GPSLongitude, exifData.GPSLongitudeRef);
-                    origem = "Metadados do Arquivo";
-                }
-            } catch (e) { 
-                console.warn("Falha na leitura dos metadados:", e); 
-            }
-
-            // 3. Se for câmara e não tiver GPS no ficheiro, tenta o GPS do navegador
-            if (lat === null && isCamera && navigator.geolocation) {
-                try {
-                    const pos = await new Promise((res, rej) => 
-                        navigator.geolocation.getCurrentPosition(res, rej, {timeout: 6000, enableHighAccuracy: true})
-                    );
-                    lat = pos.coords.latitude;
-                    lon = pos.coords.longitude;
-                    origem = "GPS Atual do Dispositivo";
-                } catch (gpsErr) { 
-                    console.warn("GPS do dispositivo não concedido ou desligado"); 
-                }
-            }
-
-            // 4. Adiciona ao estado (seja com GPS ou sem GPS)
-            adicionarFoto(base64, lat, lon, origem);
-
-        } catch (err) {
-            console.error("Erro geral no processamento:", err);
-            alert("Não foi possível processar este ficheiro de imagem.");
-        }
-    }
-    
-    // Limpeza dos inputs para aceitar a mesma foto novamente se apagada
-    document.getElementById('fileInput').value = "";
-    document.getElementById('cameraInput').value = "";
-}
-
-function adicionarFoto(base64, lat, lon, origem) {
-    const id = Date.now() + Math.random();
-    photosData.push({ id, base64, lat, lon, origem, caption: "" });
-    renderizar();
-}
-
-function removerFoto(id) {
-    if(confirm("Deseja remover esta fotografia do relatório?")) {
-        photosData = photosData.filter(p => p.id !== id);
-        renderizar();
-    }
-}
-
-function renderizar() {
-    const list = document.getElementById('photoList');
-    list.innerHTML = '';
-    photoMarkersGroup.clearLayers();
-    insetMarkersGroup.clearLayers();
-    let bounds = [];
-
-    photosData.forEach((p, index) => {
-        const figNum = index + 1;
-        const isLoc = p.lat !== null;
-        
-        if (isLoc) {
-            L.marker([p.lat, p.lon]).addTo(photoMarkersGroup).bindTooltip("Figura " + figNum, {permanent: true, direction: 'top'});
-            L.circleMarker([p.lat, p.lon], {radius: 4, color: 'red'}).addTo(insetMarkersGroup);
-            bounds.push([p.lat, p.lon]);
-        }
-
-        const div = document.createElement("div");
-        div.className = "photo";
-        div.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <b>Figura ${figNum}</b>
-                <button class="no-print" style="background:#c82333; margin:0; padding:5px 10px;" onclick="removerFoto(${p.id})">🗑️ Remover</button>
-            </div>
-            <img src="${p.base64}">
-            <div class="loc-info" style="background: ${isLoc ? '#e8f5e9' : '#ffebee'}; color: ${isLoc ? '#2e7d32' : '#c62828'};">
-                📍 Localização: ${isLoc ? toDMS(p.lat, true) + " | " + toDMS(p.lon, false) : "⚠️ LOCALIZAÇÃO NÃO ENCONTRADA NO ARQUIVO"} (${p.origem})
-            </div>
-            <input type="text" placeholder="Legenda da imagem..." value="${p.caption}" onchange="photosData.find(x=>x.id===${p.id}).caption=this.value">
-        `;
-        list.appendChild(div);
+        };
+        reader.readAsDataURL(file);
     });
+    
+    // Reseta inputs
+    document.getElementById('fileInput').value = '';
+    document.getElementById('cameraInput').value = '';
+}
 
-    if (bounds.length > 0) map.fitBounds(bounds, {padding: [50, 50], maxZoom: 15});
+// Função isolada para criar o HTML e o marcador (evita duplicação de código)
+function renderizarFotoHtml(base64, lat, lon, origemLoc) {
+    photoCount++;
+    let id = Date.now() + photoCount;
+    let coordText = "Sem localização";
+
+    if (lat && lon) {
+        coordText = `${toDMS(lat, true)} | ${toDMS(lon, false)}`;
+        
+        let marker = L.marker([lat, lon]).addTo(photoMarkersGroup);
+        marker.bindTooltip("Figura " + photoCount, {
+            permanent: true, direction: 'top', className: 'marker-tooltip', offset: [0, -25]
+        }).openTooltip();
+
+        L.circleMarker([lat, lon], {
+            radius: 4, color: 'red', fillColor: '#f03', fillOpacity: 0.8
+        }).addTo(insetMarkersGroup);
+        
+        map.setView([lat, lon], 14);
+    }
+
+    photosData.push({ id, base64, caption: "", lat, lon, coordText });
+
+    let div = document.createElement("div");
+    div.className = "photo";
+    div.innerHTML = `
+        <b>Figura ${photoCount}</b><br>
+        <img src="${base64}"><br>
+        <span style="font-size:12px; color:#555;">📍 Localização (${origemLoc}): ${coordText}</span><br>
+        <div style="margin-top:10px;">
+            <label>Legenda da imagem:</label><br>
+            <input type="text" placeholder="Descreva o que é visto nesta foto..." onchange="updateCaption(${id}, this.value)">
+        </div>
+    `;
+    document.getElementById('photoList').appendChild(div);
+}
+
+function updateCaption(id, value) {
+    let p = photosData.find(p => p.id === id);
+    if(p) p.caption = value;
+}
+
+function ajustarMapaParaImpressao() {
+    document.getElementById('print-servidores').innerHTML = document.getElementById('servidores').value.replace(/\n/g, '<br>');
+    document.getElementById('print-descricao').innerHTML = document.getElementById('descricao').value.replace(/\n/g, '<br>');
+
+    if (Object.keys(photoMarkersGroup._layers).length > 0) {
+        let bounds = photoMarkersGroup.getBounds();
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+    }
 }
 
 function imprimirRelatorio() {
-    document.getElementById('print-servidores').innerText = document.getElementById('servidores').value;
-    window.print();
+    ajustarMapaParaImpressao();
+    setTimeout(() => { window.print(); }, 800);
 }
 
 function exportKMZ() {
     let zip = new JSZip();
-    let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
+    let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Relatório Fotográfico</name>`;
+
     photosData.forEach((p, i) => {
-        if (!p.lat) return;
-        let name = `foto${i+1}.jpg`;
-        zip.file(name, p.base64.split(',')[1], {base64: true});
-        kml += `<Placemark><name>Figura ${i+1}</name><description>${p.caption}</description><Point><coordinates>${p.lon},${p.lat},0</coordinates></Point></Placemark>`;
+        if (!p.lat || !p.lon) return; 
+        let img = `foto${i+1}.jpg`;
+        let base64 = p.base64.split(',')[1];
+        zip.file(img, base64, {base64: true});
+
+        kml += `<Placemark>
+            <name>Figura ${i+1}</name>
+            <description><![CDATA[<img src="${img}" width="300"><br><b>Legenda:</b> ${p.caption}<br><b>Coordenadas:</b> ${p.coordText}]]></description>
+            <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
+        </Placemark>`;
     });
+
     kml += `</Document></kml>`;
     zip.file("doc.kml", kml);
-    zip.generateAsync({type:"blob"}).then(c => {
+
+    zip.generateAsync({type: "blob"}).then(content => {
         let a = document.createElement("a");
-        a.href = URL.createObjectURL(c);
-        a.download = "relatorio_ambiental.kmz";
+        a.href = URL.createObjectURL(content);
+        a.download = "relatorio_fotografico.kmz";
         a.click();
     });
 }
 </script>
+
 </body>
 </html>
