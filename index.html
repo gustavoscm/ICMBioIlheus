@@ -8,19 +8,27 @@
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 
 <style>
 body { font-family: Arial; margin:20px;}
-#map { height:400px; margin:10px 0;}
+#map { height:400px; margin:10px 0; position:relative;}
+#mapInset {height:150px; width:150px; position:absolute; bottom:20px; left:20px; border:2px solid black; z-index:1000;}
 .photo { border:1px solid #ccc; padding:10px; margin:10px 0;}
 .header {display:flex; align-items:center; border-bottom:2px solid #006400;}
 .header img {height:60px; margin-right:15px;}
+
+@media print {
+button {display:none;}
+body {margin:20mm; font-size:12pt;}
+#map {height:300px;}
+.photo {page-break-inside:avoid;}
+}
 </style>
 </head>
 
 <body>
 
-<!-- CABEÇALHO -->
 <div class="header">
 <img src="Logo_ICMBio_2011_Colorida.png">
 <div>
@@ -31,7 +39,6 @@ body { font-family: Arial; margin:20px;}
 
 <br>
 
-<!-- NOVO CAMPO -->
 Servidores participantes da vistoria:<br>
 <textarea rows="5" style="width:100%"></textarea><br><br>
 
@@ -53,7 +60,9 @@ Local: <input type="text" id="local"><br><br>
 Coordenadas (GMS):<br>
 <input id="coords" readonly style="width:100%">
 
-<div id="map"></div>
+<div id="map">
+<div id="mapInset"></div>
+</div>
 
 <hr>
 
@@ -87,7 +96,7 @@ Descrição:<br>
 
 <hr>
 
-<button onclick="window.print()">Imprimir PDF</button>
+<button onclick="imprimirRelatorio()">Imprimir PDF</button>
 <button onclick="exportKMZ()">Exportar KMZ</button>
 
 <script>
@@ -96,95 +105,105 @@ let map = L.map('map').setView([-14.7,-39.3],10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
 
-let marker;
-let photosData = [];
-let photoCount = 0;
+let insetMap = L.map('mapInset',{zoomControl:false, attributionControl:false});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(insetMap);
+omnivore.kml('UCs_NGI Ilheus.kml').on('ready', function(){
+insetMap.fitBounds(this.getBounds());
+}).addTo(insetMap);
+L.control.scale().addTo(insetMap);
 
-// DATA
-window.onload = function(){
-let now = new Date();
-data.value = now.toISOString().split('T')[0];
-hora.value = now.toTimeString().substring(0,5);
+let marker;
+let photosData=[];
+let photoCount=0;
+
+window.onload=function(){
+let now=new Date();
+data.value=now.toISOString().split('T')[0];
+hora.value=now.toTimeString().substring(0,5);
 };
 
-// CONVERTER GMS
-function toDMS(deg, lat){
-let d = Math.floor(Math.abs(deg));
-let m = Math.floor((Math.abs(deg)-d)*60);
-let s = (((Math.abs(deg)-d)*60-m)*60).toFixed(2);
-let dir = lat ? (deg>=0?'N':'S'):(deg>=0?'E':'W');
+function toDMS(deg,lat){
+let d=Math.floor(Math.abs(deg));
+let m=Math.floor((Math.abs(deg)-d)*60);
+let s=(((Math.abs(deg)-d)*60-m)*60).toFixed(2);
+let dir=lat?(deg>=0?'N':'S'):(deg>=0?'E':'W');
 return `${d}°${m}'${s}" ${dir}`;
 }
 
-// LOCALIZAÇÃO
 function getLocation(){
 navigator.geolocation.getCurrentPosition(pos=>{
-let lat = pos.coords.latitude;
-let lon = pos.coords.longitude;
+let lat=pos.coords.latitude;
+let lon=pos.coords.longitude;
+coords.value=toDMS(lat,true)+" | "+toDMS(lon,false);
 
-coords.value = toDMS(lat,true)+" | "+toDMS(lon,false);
-
-marker = L.marker([lat,lon]).addTo(map);
+if(marker) map.removeLayer(marker);
+marker=L.marker([lat,lon]).addTo(map);
 map.setView([lat,lon],15);
 });
 }
 
-// MANUAL
 function manualCoords(){
-let lat = parseFloat(prompt("Latitude:"));
-let lon = parseFloat(prompt("Longitude:"));
-
-coords.value = toDMS(lat,true)+" | "+toDMS(lon,false);
-
-marker = L.marker([lat,lon]).addTo(map);
+let lat=parseFloat(prompt("Latitude:"));
+let lon=parseFloat(prompt("Longitude:"));
+coords.value=toDMS(lat,true)+" | "+toDMS(lon,false);
+if(marker) map.removeLayer(marker);
+marker=L.marker([lat,lon]).addTo(map);
 map.setView([lat,lon],15);
 }
 
-// GALERIA
-function abrirGaleria(){
-fileInput.click();
-}
+function abrirGaleria(){fileInput.click();}
 
-// CAMERA
 function abrirCamera(){
-let input = document.createElement('input');
+let input=document.createElement('input');
 input.type='file';
 input.accept='image/*';
 input.capture='environment';
-
-input.onchange = e=>handleFiles(e.target.files);
+input.onchange=e=>handleFiles(e.target.files);
 input.click();
 }
 
-// PROCESSAR FOTOS
 fileInput.addEventListener('change',e=>handleFiles(e.target.files));
 
 function handleFiles(files){
 
-if(photosData.length>=10){
-alert("Máx 10 fotos");
-return;
-}
+if(photosData.length>=10){alert("Máx 10 fotos"); return;}
 
 Array.from(files).forEach(file=>{
 
-let reader = new FileReader();
+let reader=new FileReader();
 
-reader.onload = e=>{
+reader.onload=e=>{
+
+EXIF.getData(file,function(){
+
+let lat = EXIF.getTag(this,"GPSLatitude");
+let lon = EXIF.getTag(this,"GPSLongitude");
+let latRef = EXIF.getTag(this,"GPSLatitudeRef");
+let lonRef = EXIF.getTag(this,"GPSLongitudeRef");
+
+function convert(dms,ref){
+if(!dms) return null;
+let dd=dms[0]+dms[1]/60+dms[2]/3600;
+if(ref==="S"||ref==="W") dd*=-1;
+return dd;
+}
+
+lat=convert(lat,latRef);
+lon=convert(lon,lonRef);
+
+if(!lat || !lon){
+if(marker){
+lat=marker.getLatLng().lat;
+lon=marker.getLatLng().lng;
+}
+}
+
+let coordText=lat?toDMS(lat,true)+" | "+toDMS(lon,false):"Sem localização";
 
 photoCount++;
+let id=Date.now();
 
-let lat = marker ? marker.getLatLng().lat : null;
-let lon = marker ? marker.getLatLng().lng : null;
-
-let coordText = lat ? toDMS(lat,true)+" | "+toDMS(lon,false) : "Sem localização";
-
-let id = Date.now();
-
-photosData.push({
-id,base64:e.target.result,caption:"",
-lat,lon,coordText
-});
+photosData.push({id,base64:e.target.result,caption:"",lat,lon,coordText});
 
 let div=document.createElement("div");
 div.className="photo";
@@ -197,6 +216,8 @@ Legenda: <input onchange="updateCaption(${id},this.value)">
 `;
 
 photoList.appendChild(div);
+
+});
 
 };
 
@@ -211,23 +232,33 @@ let p=photosData.find(p=>p.id===id);
 p.caption=value;
 }
 
-// KMZ CORRIGIDO
+function ajustarMapa(){
+let bounds=[];
+photosData.forEach(p=>{
+if(p.lat && p.lon) bounds.push([p.lat,p.lon]);
+});
+if(bounds.length) map.fitBounds(bounds);
+}
+
+function imprimirRelatorio(){
+ajustarMapa();
+setTimeout(()=>window.print(),800);
+}
+
 function exportKMZ(){
 
 let zip=new JSZip();
-
 let kml=`<kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
 
 photosData.forEach((p,i)=>{
 
 let img=`foto${i}.jpg`;
 let base64=p.base64.split(',')[1];
-
 zip.file(img,base64,{base64:true});
 
 kml+=`
 <Placemark>
-<name>Foto ${i+1}</name>
+<name>Figura ${i+1}</name>
 <description><![CDATA[
 <img src="${img}" width="300"><br>
 ${p.caption}<br>
@@ -240,7 +271,6 @@ ${p.coordText}
 });
 
 kml+=`</Document></kml>`;
-
 zip.file("doc.kml",kml);
 
 zip.generateAsync({type:"blob"}).then(content=>{
