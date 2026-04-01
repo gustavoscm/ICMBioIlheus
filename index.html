@@ -29,12 +29,11 @@ h2, h3 { color: #006400; }
 /* Estilo do Contador de Versão */
 .version-tag {
     font-size: 11px;
-    font-weight: normal;
-    color: #888;
-    background: #eee;
-    padding: 2px 8px;
-    border-radius: 10px;
-    margin-left: 10px;
+    font-weight: bold;
+    color: #555;
+    background: #e0e0e0;
+    padding: 3px 8px;
+    border-radius: 12px;
 }
 
 .header p { margin: 0; font-size: 14px; color: #555; font-weight: bold; }
@@ -81,7 +80,7 @@ button:hover { background-color: #004d00; }
     <div>
         <h2>
             Relatório Fotográfico Ambiental
-            <span class="version-tag">v2.3.1</span>
+            <span class="version-tag">v2.4.1 (Android Chrome)</span>
         </h2>
         <p>Instituto Chico Mendes de Conservação da Biodiversidade</p>
     </div>
@@ -133,7 +132,7 @@ button:hover { background-color: #004d00; }
     <input type="file" id="fileInput" multiple accept="image/*" style="display:none" onchange="processarArquivos(this.files, false)">
     <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="processarArquivos(this.files, true)">
     
-    <p style="font-size:11px; color: #666;">* Fotos da galeria: o sistema utiliza o GPS interno do arquivo (se disponível).</p>
+    <p style="font-size:11px; color: #666;">* Fotos da galeria: o sistema tentará extrair o GPS dos metadados originais do ficheiro.</p>
 </div>
 
 <div id="photoList"></div>
@@ -164,51 +163,68 @@ function toDMS(deg, lat) {
     return `${d}°${m}'${s}" ${dir}`;
 }
 
-// Conversão EXIF para Decimal
+// Conversão EXIF para Decimal com prevenção de falhas matematicas
 function convertExifToDecimal(dmsArray, ref) {
-    if (!dmsArray || dmsArray.length < 3) return null;
-    
-    const getVal = (val) => {
-        if (typeof val === 'object' && val.numerator !== undefined) return val.numerator / val.denominator;
-        return Number(val);
-    };
+    try {
+        if (!dmsArray || dmsArray.length < 3) return null;
+        
+        const getVal = (val) => {
+            if (val === undefined || val === null) return 0;
+            if (typeof val === 'object' && val.numerator !== undefined) {
+                return val.denominator !== 0 ? val.numerator / val.denominator : 0;
+            }
+            return isNaN(Number(val)) ? 0 : Number(val);
+        };
 
-    let d = getVal(dmsArray[0]);
-    let m = getVal(dmsArray[1]);
-    let s = getVal(dmsArray[2]);
-    
-    let dd = d + (m / 60) + (s / 3600);
-    if (ref === "S" || ref === "W") dd *= -1;
-    return dd;
+        let d = getVal(dmsArray[0]);
+        let m = getVal(dmsArray[1]);
+        let s = getVal(dmsArray[2]);
+        
+        let dd = d + (m / 60) + (s / 3600);
+        if (ref === "S" || ref === "W") dd *= -1;
+        
+        return isNaN(dd) ? null : dd;
+    } catch (e) {
+        return null;
+    }
 }
 
-// Processamento de Arquivos (Assíncrono para garantir estabilidade)
+// Processamento de Arquivos adaptado para Android + Chrome
 async function processarArquivos(files, isCamera) {
     if (!files || files.length === 0) return;
 
     for (let file of Array.from(files)) {
         try {
-            // 1. Ler Base64 para exibição
-            const base64 = await new Promise((resolve) => {
+            // 1. Ler Base64 primeiro (Isto garante que a foto aparece no relatório mesmo sem GPS)
+            const base64 = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject("Erro ao ler base64");
                 reader.readAsDataURL(file);
             });
 
-            // 2. Ler Binário para EXIF
-            const arrayBuffer = await file.arrayBuffer();
             let lat = null, lon = null, origem = "Sem localização";
 
+            // 2. Ler Binário para EXIF de forma isolada (Não trava se der erro)
             try {
+                const arrayBuffer = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject("Erro ao ler ArrayBuffer");
+                    reader.readAsArrayBuffer(file);
+                });
+
                 const exifData = EXIF.readFromBinaryFile(arrayBuffer);
-                if (exifData && exifData.GPSLatitude) {
+                if (exifData && exifData.GPSLatitude && exifData.GPSLatitude.length >= 3) {
                     lat = convertExifToDecimal(exifData.GPSLatitude, exifData.GPSLatitudeRef);
                     lon = convertExifToDecimal(exifData.GPSLongitude, exifData.GPSLongitudeRef);
                     origem = "Metadados do Arquivo";
                 }
-            } catch (e) { console.warn("Leitura EXIF falhou"); }
+            } catch (e) { 
+                console.warn("Falha na leitura dos metadados:", e); 
+            }
 
-            // Se for câmera e não tiver GPS no arquivo, tenta o GPS do navegador
+            // 3. Se for câmara e não tiver GPS no ficheiro, tenta o GPS do navegador
             if (lat === null && isCamera && navigator.geolocation) {
                 try {
                     const pos = await new Promise((res, rej) => 
@@ -217,16 +233,21 @@ async function processarArquivos(files, isCamera) {
                     lat = pos.coords.latitude;
                     lon = pos.coords.longitude;
                     origem = "GPS Atual do Dispositivo";
-                } catch (gpsErr) { console.warn("GPS do dispositivo indisponível"); }
+                } catch (gpsErr) { 
+                    console.warn("GPS do dispositivo não concedido ou desligado"); 
+                }
             }
 
+            // 4. Adiciona ao estado (seja com GPS ou sem GPS)
             adicionarFoto(base64, lat, lon, origem);
+
         } catch (err) {
-            console.error(err);
-            alert("Erro ao processar imagem.");
+            console.error("Erro geral no processamento:", err);
+            alert("Não foi possível processar este ficheiro de imagem.");
         }
     }
-    // Limpa os inputs para permitir selecionar a mesma foto novamente se apagada
+    
+    // Limpeza dos inputs para aceitar a mesma foto novamente se apagada
     document.getElementById('fileInput').value = "";
     document.getElementById('cameraInput').value = "";
 }
