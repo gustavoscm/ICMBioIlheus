@@ -14,10 +14,29 @@
 /* Estilos Gerais */
 body { font-family: Arial, sans-serif; margin: 20px auto; max-width: 900px; color: #333; }
 h2, h3 { color: #006400; }
-.header { display: flex; align-items: center; border-bottom: 3px solid #006400; padding-bottom: 15px; margin-bottom: 20px; }
+
+.header { 
+    display: flex; 
+    align-items: center; 
+    border-bottom: 3px solid #006400; 
+    padding-bottom: 15px; 
+    margin-bottom: 20px; 
+}
 .header img { height: 70px; margin-right: 20px; }
-.header div { display: flex; flex-direction: column; }
-.header h2 { margin: 0; font-size: 24px; }
+.header div { display: flex; flex-direction: column; flex-grow: 1; }
+.header h2 { margin: 0; font-size: 24px; display: flex; align-items: center; justify-content: space-between; }
+
+/* Estilo do Contador de Versão */
+.version-tag {
+    font-size: 11px;
+    font-weight: normal;
+    color: #888;
+    background: #eee;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 10px;
+}
+
 .header p { margin: 0; font-size: 14px; color: #555; font-weight: bold; }
 
 .form-group { margin-bottom: 15px; }
@@ -45,7 +64,7 @@ button:hover { background-color: #004d00; }
 @media print {
     @page { margin: 15mm; size: A4 portrait; }
     body { margin: 0; font-family: "Times New Roman", serif; font-size: 11pt; }
-    button, .no-print { display: none !important; }
+    button, .no-print, .version-tag { display: none !important; }
     .header { border-bottom: 2px solid #000; }
     input, textarea, select { border: none !important; appearance: none; padding: 0 !important; }
     .print-only-text { display: block; white-space: pre-wrap; }
@@ -60,7 +79,10 @@ button:hover { background-color: #004d00; }
 <div class="header">
     <img src="Logo_ICMBio_2011_Colorida.png" alt="Logo ICMBio">
     <div>
-        <h2>Relatório Fotográfico Ambiental</h2>
+        <h2>
+            Relatório Fotográfico Ambiental
+            <span class="version-tag">v2.3.1</span>
+        </h2>
         <p>Instituto Chico Mendes de Conservação da Biodiversidade</p>
     </div>
 </div>
@@ -111,7 +133,7 @@ button:hover { background-color: #004d00; }
     <input type="file" id="fileInput" multiple accept="image/*" style="display:none" onchange="processarArquivos(this.files, false)">
     <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="processarArquivos(this.files, true)">
     
-    <p style="font-size:11px; color: #666;">* Fotos da galeria dependem de GPS nos metadados originais do arquivo.</p>
+    <p style="font-size:11px; color: #666;">* Fotos da galeria: o sistema utiliza o GPS interno do arquivo (se disponível).</p>
 </div>
 
 <div id="photoList"></div>
@@ -133,7 +155,7 @@ let insetMarkersGroup = L.featureGroup().addTo(insetMap);
 
 let photosData = [];
 
-// Conversão Decimal para GMS
+// Conversão Decimal para Graus, Minutos e Segundos
 function toDMS(deg, lat) {
     let d = Math.floor(Math.abs(deg));
     let m = Math.floor((Math.abs(deg) - d) * 60);
@@ -142,7 +164,7 @@ function toDMS(deg, lat) {
     return `${d}°${m}'${s}" ${dir}`;
 }
 
-// Conversão Robusta de EXIF para Decimal
+// Conversão EXIF para Decimal
 function convertExifToDecimal(dmsArray, ref) {
     if (!dmsArray || dmsArray.length < 3) return null;
     
@@ -160,18 +182,20 @@ function convertExifToDecimal(dmsArray, ref) {
     return dd;
 }
 
-// Processamento de Arquivos
+// Processamento de Arquivos (Assíncrono para garantir estabilidade)
 async function processarArquivos(files, isCamera) {
     if (!files || files.length === 0) return;
 
     for (let file of Array.from(files)) {
         try {
+            // 1. Ler Base64 para exibição
             const base64 = await new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result);
                 reader.readAsDataURL(file);
             });
 
+            // 2. Ler Binário para EXIF
             const arrayBuffer = await file.arrayBuffer();
             let lat = null, lon = null, origem = "Sem localização";
 
@@ -182,22 +206,27 @@ async function processarArquivos(files, isCamera) {
                     lon = convertExifToDecimal(exifData.GPSLongitude, exifData.GPSLongitudeRef);
                     origem = "Metadados do Arquivo";
                 }
-            } catch (e) { console.warn("Erro EXIF ignorado para permitir upload."); }
+            } catch (e) { console.warn("Leitura EXIF falhou"); }
 
+            // Se for câmera e não tiver GPS no arquivo, tenta o GPS do navegador
             if (lat === null && isCamera && navigator.geolocation) {
-                // Tenta GPS do dispositivo apenas para fotos tiradas na hora
-                const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout: 5000}));
-                lat = pos.coords.latitude;
-                lon = pos.coords.longitude;
-                origem = "GPS Atual do Dispositivo";
+                try {
+                    const pos = await new Promise((res, rej) => 
+                        navigator.geolocation.getCurrentPosition(res, rej, {timeout: 6000, enableHighAccuracy: true})
+                    );
+                    lat = pos.coords.latitude;
+                    lon = pos.coords.longitude;
+                    origem = "GPS Atual do Dispositivo";
+                } catch (gpsErr) { console.warn("GPS do dispositivo indisponível"); }
             }
 
             adicionarFoto(base64, lat, lon, origem);
         } catch (err) {
             console.error(err);
-            alert("Erro ao processar imagem. Verifique se o formato é suportado.");
+            alert("Erro ao processar imagem.");
         }
     }
+    // Limpa os inputs para permitir selecionar a mesma foto novamente se apagada
     document.getElementById('fileInput').value = "";
     document.getElementById('cameraInput').value = "";
 }
@@ -209,7 +238,7 @@ function adicionarFoto(base64, lat, lon, origem) {
 }
 
 function removerFoto(id) {
-    if(confirm("Deseja remover esta imagem?")) {
+    if(confirm("Deseja remover esta fotografia do relatório?")) {
         photosData = photosData.filter(p => p.id !== id);
         renderizar();
     }
@@ -227,7 +256,7 @@ function renderizar() {
         const isLoc = p.lat !== null;
         
         if (isLoc) {
-            L.marker([p.lat, p.lon]).addTo(photoMarkersGroup).bindTooltip("Figura " + figNum, {permanent: true});
+            L.marker([p.lat, p.lon]).addTo(photoMarkersGroup).bindTooltip("Figura " + figNum, {permanent: true, direction: 'top'});
             L.circleMarker([p.lat, p.lon], {radius: 4, color: 'red'}).addTo(insetMarkersGroup);
             bounds.push([p.lat, p.lon]);
         }
@@ -237,7 +266,7 @@ function renderizar() {
         div.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <b>Figura ${figNum}</b>
-                <button class="no-print" style="background:#c82333; margin:0; padding:5px 10px;" onclick="removerFoto(${p.id})">Remover</button>
+                <button class="no-print" style="background:#c82333; margin:0; padding:5px 10px;" onclick="removerFoto(${p.id})">🗑️ Remover</button>
             </div>
             <img src="${p.base64}">
             <div class="loc-info" style="background: ${isLoc ? '#e8f5e9' : '#ffebee'}; color: ${isLoc ? '#2e7d32' : '#c62828'};">
@@ -270,7 +299,7 @@ function exportKMZ() {
     zip.generateAsync({type:"blob"}).then(c => {
         let a = document.createElement("a");
         a.href = URL.createObjectURL(c);
-        a.download = "relatorio.kmz";
+        a.download = "relatorio_ambiental.kmz";
         a.click();
     });
 }
