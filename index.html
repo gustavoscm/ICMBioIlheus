@@ -137,7 +137,6 @@ textarea { display:none;}
 
 <script>
 
-// MAPA
 let map = L.map('map').setView([-14.7,-39.3],10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -156,14 +155,12 @@ let insetMarkersGroup = L.featureGroup().addTo(insetMap);
 let photosData=[];
 let photoCount=0;
 
-// DATA
 window.onload=function(){
 let now=new Date();
 data.value=now.toISOString().split('T')[0];
 hora.value=now.toTimeString().substring(0,5);
 };
 
-// GMS
 function toDMS(deg,lat){
 let d=Math.floor(Math.abs(deg));
 let m=Math.floor((Math.abs(deg)-d)*60);
@@ -172,14 +169,12 @@ let dir=lat?(deg>=0?'N':'S'):(deg>=0?'E':'W');
 return `${d}°${m}'${s}" ${dir}`;
 }
 
-// INPUTS
 function abrirGaleria(){fileInput.click();}
 function abrirCamera(){cameraInput.click();}
 
 fileInput.addEventListener('change',e=>processarArquivos(e.target.files));
 cameraInput.addEventListener('change',e=>processarArquivos(e.target.files));
 
-// EXIF CORRIGIDO
 function convertExifToDecimal(dmsArray, ref){
 if(!dmsArray || dmsArray.length<3) return null;
 
@@ -199,7 +194,6 @@ if(ref==="S"||ref==="W") dd*=-1;
 return dd;
 }
 
-// PROCESSAR
 function processarArquivos(files){
 
 Array.from(files).forEach(file=>{
@@ -214,11 +208,9 @@ let lat=convertExifToDecimal(EXIF.getTag(this,"GPSLatitude"),EXIF.getTag(this,"G
 let lon=convertExifToDecimal(EXIF.getTag(this,"GPSLongitude"),EXIF.getTag(this,"GPSLongitudeRef"));
 
 if(lat && lon){
-renderizarFotoHtml(e.target.result,lat,lon,"EXIF");
+renderizarFotoHtml(e.target.result,lat,lon,"Metadados EXIF");
 }else{
-navigator.geolocation.getCurrentPosition(pos=>{
-renderizarFotoHtml(e.target.result,pos.coords.latitude,pos.coords.longitude,"GPS do dispositivo");
-});
+renderizarFotoHtml(e.target.result,null,null,"Localização não encontrada nos metadados da imagem");
 }
 
 });
@@ -231,7 +223,6 @@ reader.readAsDataURL(file);
 
 }
 
-// RENDER FOTO
 function renderizarFotoHtml(base64,lat,lon,origem){
 
 photoCount++;
@@ -250,7 +241,6 @@ marker.bindTooltip("Figura "+photoCount,{permanent:true});
 
 insetMarker=L.circleMarker([lat,lon],{radius:4,color:'red'}).addTo(insetMarkersGroup);
 
-map.setView([lat,lon],14);
 }
 
 let obj={id,base64,caption:"",lat,lon,coordText,marker,insetMarker};
@@ -263,7 +253,7 @@ div.id="photo-"+id;
 div.innerHTML=`
 <b>Figura ${photoCount}</b><br>
 <img src="${base64}"><br>
-<span style="font-size:12px;">📍 (${origem}): ${coordText}</span><br>
+<span style="font-size:12px;">📍 ${origem}: ${coordText}</span><br>
 
 <input placeholder="Legenda..." onchange="updateCaption(${id},this.value)">
 
@@ -274,9 +264,7 @@ div.innerHTML=`
 photoList.appendChild(div);
 }
 
-// REMOVE FOTO
 function removerFoto(id){
-
 let i=photosData.findIndex(p=>p.id===id);
 if(i===-1) return;
 
@@ -296,12 +284,18 @@ let p=photosData.find(p=>p.id===id);
 if(p) p.caption=val;
 }
 
-// PRINT
+function ajustarMapaParaImpressao(){
+let coords = photosData.filter(p=>p.lat && p.lon).map(p=>[p.lat,p.lon]);
+if(coords.length){
+map.fitBounds(coords,{padding:[40,40]});
+}
+}
+
 function imprimirRelatorio(){
+ajustarMapaParaImpressao();
 setTimeout(()=>window.print(),800);
 }
 
-// KMZ
 function exportKMZ(){
 
 let zip=new JSZip();
