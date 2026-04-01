@@ -11,18 +11,134 @@
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 
 <style>
-body { font-family: Arial; margin:20px;}
-#map { height:400px; margin:10px 0; position:relative;}
-#mapInset {height:150px; width:150px; position:absolute; bottom:20px; left:20px; border:2px solid black; z-index:1000;}
-.photo { border:1px solid #ccc; padding:10px; margin:10px 0;}
-.header {display:flex; align-items:center; border-bottom:2px solid #006400;}
-.header img {height:60px; margin-right:15px;}
+/* Estilos Gerais (Tela) */
+body { 
+    font-family: Arial, sans-serif; 
+    margin: 20px auto; 
+    max-width: 900px;
+    color: #333;
+}
+h2, h3 { color: #006400; }
+.header { 
+    display: flex; 
+    align-items: center; 
+    border-bottom: 3px solid #006400; 
+    padding-bottom: 15px; 
+    margin-bottom: 20px;
+}
+.header img { height: 70px; margin-right: 20px; }
+.header div { display: flex; flex-direction: column; }
+.header h2 { margin: 0 0 5px 0; font-size: 24px;}
+.header p { margin: 0; font-size: 14px; color: #555; font-weight: bold;}
 
+.form-group { margin-bottom: 15px; }
+.form-group label { font-weight: bold; display: block; margin-bottom: 5px; }
+.form-group input[type="text"], 
+.form-group input[type="date"], 
+.form-group input[type="time"], 
+.form-group select, 
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+.form-inline { display: flex; gap: 15px; }
+.form-inline .form-group { flex: 1; }
+
+button {
+    background-color: #006400;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-right: 5px;
+    margin-bottom: 10px;
+}
+button:hover { background-color: #004d00; }
+
+#map-container { position: relative; margin: 20px 0; border: 1px solid #000; }
+#map { height: 450px; width: 100%; z-index: 1;}
+#mapInset {
+    height: 150px; 
+    width: 150px; 
+    position: absolute; 
+    bottom: 20px; 
+    right: 20px; /* Canto inferior direito conforme solicitado */
+    border: 2px solid black; 
+    z-index: 1000;
+    background: white;
+}
+
+.photo { border: 1px solid #ddd; padding: 15px; margin: 15px 0; background: #f9f9f9; border-radius: 5px;}
+.photo b { color: #006400; font-size: 16px;}
+.photo img { max-width: 100%; height: auto; margin: 10px 0; border: 1px solid #ccc;}
+.photo input { width: 100%; padding: 5px; margin-top: 5px;}
+
+.marker-tooltip { background: rgba(255, 255, 255, 0.9); border: 1px solid #000; font-weight: bold; color: #000; }
+
+/* Ocultar divs de impressão na tela */
+.print-only-text { display: none; }
+
+/* Estilos de Impressão (Relatório Técnico) */
 @media print {
-button {display:none;}
-body {margin:20mm; font-size:12pt;}
-#map {height:300px;}
-.photo {page-break-inside:avoid;}
+    @page { margin: 15mm; size: A4 portrait;}
+    body { 
+        margin: 0; 
+        max-width: 100%; 
+        font-family: "Times New Roman", Times, serif; 
+        font-size: 11pt;
+        color: #000;
+    }
+    
+    /* Esconder elementos interativos */
+    button, .no-print { display: none !important; }
+    
+    .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;}
+    .header h2 { color: #000; font-size: 18pt; margin-bottom: 2px;}
+    .header p { color: #000; font-size: 12pt;}
+    h3 { color: #000; border-bottom: 1px solid #000; padding-bottom: 3px; font-size: 14pt; margin-top: 20px;}
+    
+    /* Transformar inputs/textareas em texto corrido */
+    input, select, textarea {
+        border: none !important;
+        background: transparent !important;
+        -webkit-appearance: none;
+        appearance: none;
+        padding: 0 !important;
+        margin: 0 !important;
+        color: #000 !important;
+        font-family: "Times New Roman", Times, serif;
+        font-size: 11pt;
+        width: 100% !important;
+        resize: none;
+        overflow: hidden;
+    }
+    
+    textarea { display: none; } /* Oculta o textarea na impressão para usar a div substituta */
+    .print-only-text { display: block; white-space: pre-wrap; margin-top: 5px;}
+    
+    .form-group label { display: inline-block; margin-bottom: 2px;}
+    .form-group { margin-bottom: 10px; page-break-inside: avoid;}
+    
+    #map-container { border: 1px solid #000; page-break-inside: avoid; margin-bottom: 20px;}
+    #map { height: 14cm !important; }
+    
+    .photo { 
+        page-break-inside: avoid; 
+        border: none; 
+        border-top: 1px solid #000; 
+        background: transparent; 
+        padding: 10px 0;
+        margin: 10px 0;
+        border-radius: 0;
+    }
+    .photo img { max-height: 400px; width: auto; display: block;}
+    .photo input { border-bottom: 1px dashed #000 !important; display: inline-block;}
 }
 </style>
 </head>
@@ -30,257 +146,325 @@ body {margin:20mm; font-size:12pt;}
 <body>
 
 <div class="header">
-<img src="Logo_ICMBio_2011_Colorida.png">
-<div>
-<h2>Relatório Fotográfico Ambiental</h2>
-<p>Instituto Chico Mendes de Conservação da Biodiversidade</p>
-</div>
-</div>
-
-<br>
-
-Servidores participantes da vistoria:<br>
-<textarea rows="5" style="width:100%"></textarea><br><br>
-
-Data: <input type="date" id="data" readonly>
-Hora: <input type="time" id="hora" readonly><br><br>
-
-UC:
-<select id="uc">
-<option>Reserva Biológica de Una</option>
-<option>Refúgio de Vida Silvestre de Una</option>
-<option>Parque Nacional da Serra das Lontras</option>
-</select><br><br>
-
-Local: <input type="text" id="local"><br><br>
-
-<button onclick="getLocation()">Obter localização</button>
-<button onclick="manualCoords()">Inserir coordenadas manualmente</button><br><br>
-
-Coordenadas (GMS):<br>
-<input id="coords" readonly style="width:100%">
-
-<div id="map">
-<div id="mapInset"></div>
+    <img src="Logo_ICMBio_2011_Colorida.png" alt="Logo ICMBio">
+    <div>
+        <h2>Relatório Fotográfico Ambiental</h2>
+        <p>Instituto Chico Mendes de Conservação da Biodiversidade</p>
+    </div>
 </div>
 
-<hr>
+<div class="form-group">
+    <label>Servidores participantes da vistoria:</label>
+    <textarea id="servidores" rows="3"></textarea>
+    <div class="print-only-text" id="print-servidores"></div>
+</div>
+
+<div class="form-inline">
+    <div class="form-group">
+        <label>Data:</label>
+        <input type="date" id="data">
+    </div>
+    <div class="form-group">
+        <label>Hora:</label>
+        <input type="time" id="hora">
+    </div>
+    <div class="form-group">
+        <label>Unidade de Conservação (UC):</label>
+        <select id="uc">
+            <option>Reserva Biológica de Una</option>
+            <option>Refúgio de Vida Silvestre de Una</option>
+            <option>Parque Nacional da Serra das Lontras</option>
+        </select>
+    </div>
+</div>
+
+<div class="form-group">
+    <label>Localização / Ponto de Referência:</label>
+    <input type="text" id="local">
+</div>
+
+<hr style="border:0; border-top:1px solid #ccc; margin: 20px 0;">
 
 <h3>Informações sobre o Processo</h3>
 
-Número do processo:<br>
-<input type="text" id="processo"><br><br>
+<div class="form-inline">
+    <div class="form-group" style="flex: 0.4;">
+        <label>Número do processo:</label>
+        <input type="text" id="processo">
+    </div>
+    <div class="form-group" style="flex: 0.6;">
+        <label>Assunto:</label>
+        <select id="assunto">
+            <option>Área embargada</option>
+            <option>Auto de Infração</option>
+            <option>Autorização Direta</option>
+            <option>Regularização Fundiária</option>
+            <option>Denúncia</option>
+        </select>
+    </div>
+</div>
 
-Assunto:<br>
-<select id="assunto">
-<option>Área embargada</option>
-<option>Auto de Infração</option>
-<option>Autorização Direta</option>
-<option>Regularização Fundiária</option>
-<option>Denúncia</option>
-</select><br><br>
+<div class="form-group">
+    <label>Descrição da Atividade / Fato observado:</label>
+    <textarea id="descricao" rows="4"></textarea>
+    <div class="print-only-text" id="print-descricao"></div>
+</div>
 
-Descrição:<br>
-<textarea id="descricao" rows="5" style="width:100%"></textarea>
+<h3>Mapa de Localização Fotográfica</h3>
 
-<hr>
+<div id="map-container">
+    <div id="map"></div>
+    <div id="mapInset"></div>
+</div>
 
 <h3>Registro Fotográfico</h3>
 
-<button onclick="abrirGaleria()">Adicionar imagem</button>
-<button onclick="abrirCamera()">Tirar foto</button>
-
-<input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+<div class="no-print">
+    <button onclick="abrirGaleria()">Anexar Imagem (Extrair GPS)</button>
+    <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+    <p style="font-size:12px; color:#666;">* As coordenadas serão extraídas automaticamente dos metadados (EXIF) de cada foto anexada.</p>
+</div>
 
 <div id="photoList"></div>
 
-<hr>
+<hr class="no-print" style="border:0; border-top:1px solid #ccc; margin: 20px 0;">
 
-<button onclick="imprimirRelatorio()">Imprimir PDF</button>
-<button onclick="exportKMZ()">Exportar KMZ</button>
+<div class="no-print">
+    <button onclick="imprimirRelatorio()">Gerar Relatório PDF</button>
+    <button onclick="exportKMZ()">Exportar KML/KMZ</button>
+</div>
 
 <script>
+// Inicialização do Mapa Principal
+let map = L.map('map').setView([-14.7, -39.3], 10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-let map = L.map('map').setView([-14.7,-39.3],10);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+// Adicionar Barra de Escala no mapa principal
+L.control.scale({metric: true, imperial: false, position: 'bottomleft'}).addTo(map);
+
+// Função para gerar Grade de Coordenadas (Graticule)
+function addGraticule(map) {
+    let graticuleLayer = L.layerGroup().addTo(map);
+    function draw() {
+        graticuleLayer.clearLayers();
+        let bounds = map.getBounds();
+        let zoom = map.getZoom();
+        // Ajusta a densidade da grade conforme o zoom
+        let step = zoom > 14 ? 0.01 : (zoom > 10 ? 0.05 : (zoom > 8 ? 0.1 : 0.5));
+
+        let lat1 = Math.floor(bounds.getSouth() / step) * step;
+        let lat2 = Math.ceil(bounds.getNorth() / step) * step;
+        let lon1 = Math.floor(bounds.getWest() / step) * step;
+        let lon2 = Math.ceil(bounds.getEast() / step) * step;
+
+        for (let lat = lat1; lat <= lat2; lat += step) {
+            L.polyline([[lat, -180], [lat, 180]], {color: '#000', weight: 1, opacity: 0.3, dashArray: '4,4'}).addTo(graticuleLayer);
+        }
+        for (let lon = lon1; lon <= lon2; lon += step) {
+            L.polyline([[-90, lon], [90, lon]], {color: '#000', weight: 1, opacity: 0.3, dashArray: '4,4'}).addTo(graticuleLayer);
+        }
+    }
+    map.on('moveend', draw);
+    draw();
+}
+addGraticule(map); // Ativa a grade
+
+// Inicialização do Mapa Inset (Miniatura no canto inferior direito)
+let insetMap = L.map('mapInset', {
+    zoomControl: false, 
+    attributionControl: false, 
+    dragging: false, 
+    scrollWheelZoom: false,
+    doubleClickZoom: false
+});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(insetMap);
+
+// Carregar KML e fixar o Mini Mapa na extensão do KML
+omnivore.kml('UCs_NGI Ilheus.kml')
+    .on('ready', function() {
+        // Fixar a visão na extensão geral da UC
+        insetMap.fitBounds(this.getBounds());
+    })
+    .addTo(insetMap);
+// Opcional: Adicionar a layer KML também no mapa principal
 omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
 
-let insetMap = L.map('mapInset',{zoomControl:false, attributionControl:false});
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(insetMap);
-omnivore.kml('UCs_NGI Ilheus.kml').on('ready', function(){
-insetMap.fitBounds(this.getBounds());
-}).addTo(insetMap);
-L.control.scale().addTo(insetMap);
+// Grupos de marcadores para as fotos
+let photoMarkersGroup = L.featureGroup().addTo(map);
+let insetMarkersGroup = L.featureGroup().addTo(insetMap);
 
-let marker;
-let photosData=[];
-let photoCount=0;
+let photosData = [];
+let photoCount = 0;
 
-window.onload=function(){
-let now=new Date();
-data.value=now.toISOString().split('T')[0];
-hora.value=now.toTimeString().substring(0,5);
+window.onload = function() {
+    let now = new Date();
+    document.getElementById('data').value = now.toISOString().split('T')[0];
+    document.getElementById('hora').value = now.toTimeString().substring(0, 5);
 };
 
-function toDMS(deg,lat){
-let d=Math.floor(Math.abs(deg));
-let m=Math.floor((Math.abs(deg)-d)*60);
-let s=(((Math.abs(deg)-d)*60-m)*60).toFixed(2);
-let dir=lat?(deg>=0?'N':'S'):(deg>=0?'E':'W');
-return `${d}°${m}'${s}" ${dir}`;
+// Conversão Decimal para Graus, Minutos e Segundos
+function toDMS(deg, lat) {
+    let d = Math.floor(Math.abs(deg));
+    let m = Math.floor((Math.abs(deg) - d) * 60);
+    let s = (((Math.abs(deg) - d) * 60 - m) * 60).toFixed(2);
+    let dir = lat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W');
+    return `${d}°${m}'${s}" ${dir}`;
 }
 
-function getLocation(){
-navigator.geolocation.getCurrentPosition(pos=>{
-let lat=pos.coords.latitude;
-let lon=pos.coords.longitude;
-coords.value=toDMS(lat,true)+" | "+toDMS(lon,false);
-
-if(marker) map.removeLayer(marker);
-marker=L.marker([lat,lon]).addTo(map);
-map.setView([lat,lon],15);
-});
+function abrirGaleria() { 
+    document.getElementById('fileInput').click(); 
 }
 
-function manualCoords(){
-let lat=parseFloat(prompt("Latitude:"));
-let lon=parseFloat(prompt("Longitude:"));
-coords.value=toDMS(lat,true)+" | "+toDMS(lon,false);
-if(marker) map.removeLayer(marker);
-marker=L.marker([lat,lon]).addTo(map);
-map.setView([lat,lon],15);
+document.getElementById('fileInput').addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(files) {
+    if ((photosData.length + files.length) > 15) { 
+        alert("Recomendado máximo de 15 fotos para não sobrecarregar a memória/PDF."); 
+    }
+
+    Array.from(files).forEach(file => {
+        let reader = new FileReader();
+        
+        reader.onload = e => {
+            EXIF.getData(file, function() {
+                let latExif = EXIF.getTag(this, "GPSLatitude");
+                let lonExif = EXIF.getTag(this, "GPSLongitude");
+                let latRef = EXIF.getTag(this, "GPSLatitudeRef");
+                let lonRef = EXIF.getTag(this, "GPSLongitudeRef");
+
+                // Função segura para converter o array EXIF para Decimal
+                function convertExifToDecimal(dmsArray, ref) {
+                    if (!dmsArray || dmsArray.length < 3) return null;
+                    let d = dmsArray[0].valueOf();
+                    let m = dmsArray[1].valueOf();
+                    let s = dmsArray[2].valueOf();
+                    let dd = d + (m / 60) + (s / 3600);
+                    if (ref === "S" || ref === "W") dd *= -1;
+                    return dd;
+                }
+
+                let lat = convertExifToDecimal(latExif, latRef);
+                let lon = convertExifToDecimal(lonExif, lonRef);
+
+                photoCount++;
+                let id = Date.now() + photoCount;
+                let coordText = "Sem localização no EXIF";
+
+                if (lat && lon) {
+                    coordText = `${toDMS(lat, true)} | ${toDMS(lon, false)}`;
+                    
+                    // Adiciona marcador no Mapa Principal com o rótulo da Figura
+                    let marker = L.marker([lat, lon]).addTo(photoMarkersGroup);
+                    marker.bindTooltip("Figura " + photoCount, {
+                        permanent: true, 
+                        direction: 'top', 
+                        className: 'marker-tooltip',
+                        offset: [0, -25]
+                    }).openTooltip();
+
+                    // Adiciona pontinho no Inset Map (Mapa Geral)
+                    L.circleMarker([lat, lon], {
+                        radius: 4, 
+                        color: 'red', 
+                        fillColor: '#f03', 
+                        fillOpacity: 0.8
+                    }).addTo(insetMarkersGroup);
+                    
+                    // Centraliza temporariamente a visão no último ponto adicionado
+                    map.setView([lat, lon], 14);
+                }
+
+                photosData.push({ id, base64: e.target.result, caption: "", lat, lon, coordText });
+
+                let div = document.createElement("div");
+                div.className = "photo";
+
+                div.innerHTML = `
+                    <b>Figura ${photoCount}</b><br>
+                    <img src="${e.target.result}"><br>
+                    <span style="font-size:12px; color:#555;">📍 Localização EXIF: ${coordText}</span><br>
+                    <div style="margin-top:10px;">
+                        <label>Legenda da imagem:</label><br>
+                        <input type="text" placeholder="Descreva o que é visto nesta foto..." onchange="updateCaption(${id}, this.value)">
+                    </div>
+                `;
+
+                document.getElementById('photoList').appendChild(div);
+            });
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // Reseta o input para permitir selecionar a mesma foto caso necessário
+    document.getElementById('fileInput').value = '';
 }
 
-function abrirGaleria(){fileInput.click();}
-
-function abrirCamera(){
-let input=document.createElement('input');
-input.type='file';
-input.accept='image/*';
-input.capture='environment';
-input.onchange=e=>handleFiles(e.target.files);
-input.click();
+function updateCaption(id, value) {
+    let p = photosData.find(p => p.id === id);
+    if(p) p.caption = value;
 }
 
-fileInput.addEventListener('change',e=>handleFiles(e.target.files));
+function ajustarMapaParaImpressao() {
+    // Sincroniza os textareas com as divs para a impressão ficar correta
+    document.getElementById('print-servidores').innerHTML = document.getElementById('servidores').value.replace(/\n/g, '<br>');
+    document.getElementById('print-descricao').innerHTML = document.getElementById('descricao').value.replace(/\n/g, '<br>');
 
-function handleFiles(files){
-
-if(photosData.length>=10){alert("Máx 10 fotos"); return;}
-
-Array.from(files).forEach(file=>{
-
-let reader=new FileReader();
-
-reader.onload=e=>{
-
-EXIF.getData(file,function(){
-
-let lat = EXIF.getTag(this,"GPSLatitude");
-let lon = EXIF.getTag(this,"GPSLongitude");
-let latRef = EXIF.getTag(this,"GPSLatitudeRef");
-let lonRef = EXIF.getTag(this,"GPSLongitudeRef");
-
-function convert(dms,ref){
-if(!dms) return null;
-let dd=dms[0]+dms[1]/60+dms[2]/3600;
-if(ref==="S"||ref==="W") dd*=-1;
-return dd;
+    // Centraliza o mapa principal para abranger TODOS os pontos anexados
+    if (Object.keys(photoMarkersGroup._layers).length > 0) {
+        let bounds = photoMarkersGroup.getBounds();
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+    }
 }
 
-lat=convert(lat,latRef);
-lon=convert(lon,lonRef);
-
-if(!lat || !lon){
-if(marker){
-lat=marker.getLatLng().lat;
-lon=marker.getLatLng().lng;
-}
-}
-
-let coordText=lat?toDMS(lat,true)+" | "+toDMS(lon,false):"Sem localização";
-
-photoCount++;
-let id=Date.now();
-
-photosData.push({id,base64:e.target.result,caption:"",lat,lon,coordText});
-
-let div=document.createElement("div");
-div.className="photo";
-
-div.innerHTML=`
-<b>Figura ${photoCount}</b><br>
-<img src="${e.target.result}" width="250"><br>
-Localização: ${coordText}<br>
-Legenda: <input onchange="updateCaption(${id},this.value)">
-`;
-
-photoList.appendChild(div);
-
-});
-
-};
-
-reader.readAsDataURL(file);
-
-});
-
+function imprimirRelatorio() {
+    ajustarMapaParaImpressao();
+    
+    // Pequeno timeout para garantir que o mapa re-renderizou no novo enquadramento
+    setTimeout(() => {
+        window.print();
+    }, 800);
 }
 
-function updateCaption(id,value){
-let p=photosData.find(p=>p.id===id);
-p.caption=value;
+function exportKMZ() {
+    let zip = new JSZip();
+    let kml = `<?xml version="1.0" encoding="UTF-8"?>
+    <kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+      <name>Relatório Fotográfico</name>`;
+
+    photosData.forEach((p, i) => {
+        if (!p.lat || !p.lon) return; // Só exporta fotos com coordenadas
+
+        let img = `foto${i+1}.jpg`;
+        let base64 = p.base64.split(',')[1];
+        zip.file(img, base64, {base64: true});
+
+        kml += `
+        <Placemark>
+            <name>Figura ${i+1}</name>
+            <description><![CDATA[
+                <img src="${img}" width="300"><br>
+                <b>Legenda:</b> ${p.caption}<br>
+                <b>Coordenadas:</b> ${p.coordText}
+            ]]></description>
+            <Point>
+                <coordinates>${p.lon},${p.lat},0</coordinates>
+            </Point>
+        </Placemark>`;
+    });
+
+    kml += `</Document></kml>`;
+    zip.file("doc.kml", kml);
+
+    zip.generateAsync({type: "blob"}).then(content => {
+        let a = document.createElement("a");
+        a.href = URL.createObjectURL(content);
+        a.download = "relatorio_fotografico.kmz";
+        a.click();
+    });
 }
-
-function ajustarMapa(){
-let bounds=[];
-photosData.forEach(p=>{
-if(p.lat && p.lon) bounds.push([p.lat,p.lon]);
-});
-if(bounds.length) map.fitBounds(bounds);
-}
-
-function imprimirRelatorio(){
-ajustarMapa();
-setTimeout(()=>window.print(),800);
-}
-
-function exportKMZ(){
-
-let zip=new JSZip();
-let kml=`<kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
-
-photosData.forEach((p,i)=>{
-
-let img=`foto${i}.jpg`;
-let base64=p.base64.split(',')[1];
-zip.file(img,base64,{base64:true});
-
-kml+=`
-<Placemark>
-<name>Figura ${i+1}</name>
-<description><![CDATA[
-<img src="${img}" width="300"><br>
-${p.caption}<br>
-${p.coordText}
-]]></description>
-<Point>
-<coordinates>${p.lon},${p.lat},0</coordinates>
-</Point>
-</Placemark>`;
-});
-
-kml+=`</Document></kml>`;
-zip.file("doc.kml",kml);
-
-zip.generateAsync({type:"blob"}).then(content=>{
-let a=document.createElement("a");
-a.href=URL.createObjectURL(content);
-a.download="relatorio.kmz";
-a.click();
-});
-}
-
 </script>
 
 </body>
