@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Relatório Fotográfico Ambiental - Versão 1.0</title>
+<title>Relatório Fotográfico Ambiental</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -11,131 +11,46 @@
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 
 <style>
-/* Estilos Gerais (Tela) */
-body { 
-    font-family: Arial, sans-serif; 
-    margin: 20px auto; 
-    max-width: 900px;
-    color: #333;
-}
+/* Estilos Gerais */
+body { font-family: Arial, sans-serif; margin: 20px auto; max-width: 900px; color: #333; }
 h2, h3 { color: #006400; }
-.header { 
-    display: flex; 
-    align-items: center; 
-    border-bottom: 3px solid #006400; 
-    padding-bottom: 15px; 
-    margin-bottom: 20px;
-}
+.header { display: flex; align-items: center; border-bottom: 3px solid #006400; padding-bottom: 15px; margin-bottom: 20px; }
 .header img { height: 70px; margin-right: 20px; }
 .header div { display: flex; flex-direction: column; }
-.header h2 { margin: 0 0 5px 0; font-size: 24px;}
-.header p { margin: 0; font-size: 14px; color: #555; font-weight: bold;}
+.header h2 { margin: 0; font-size: 24px; }
+.header p { margin: 0; font-size: 14px; color: #555; font-weight: bold; }
 
 .form-group { margin-bottom: 15px; }
 .form-group label { font-weight: bold; display: block; margin-bottom: 5px; }
-.form-group input[type="text"], 
-.form-group input[type="date"], 
-.form-group input[type="time"], 
-.form-group select, 
-.form-group textarea {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-    font-family: Arial, sans-serif;
+.form-group input, .form-group select, .form-group textarea {
+    width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
 }
 .form-inline { display: flex; gap: 15px; }
 .form-inline .form-group { flex: 1; }
 
-button {
-    background-color: #006400;
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    margin-right: 5px;
-    margin-bottom: 10px;
-}
+button { background-color: #006400; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-bottom: 10px; }
 button:hover { background-color: #004d00; }
 
 #map-container { position: relative; margin: 20px 0; border: 1px solid #000; }
-#map { height: 450px; width: 100%; z-index: 1;}
-#mapInset {
-    height: 150px; 
-    width: 150px; 
-    position: absolute; 
-    bottom: 20px; 
-    right: 20px; 
-    border: 2px solid black; 
-    z-index: 1000;
-    background: white;
-}
+#map { height: 450px; width: 100%; z-index: 1; }
+#mapInset { height: 150px; width: 150px; position: absolute; bottom: 20px; right: 20px; border: 2px solid black; z-index: 1000; background: white; }
 
-.photo { border: 1px solid #ddd; padding: 15px; margin: 15px 0; background: #f9f9f9; border-radius: 5px;}
-.photo b { color: #006400; font-size: 16px;}
-.photo img { max-width: 100%; height: auto; margin: 10px 0; border: 1px solid #ccc;}
-.photo input { width: 100%; padding: 5px; margin-top: 5px;}
-
-.marker-tooltip { background: rgba(255, 255, 255, 0.9); border: 1px solid #000; font-weight: bold; color: #000; }
+.photo { border: 1px solid #ddd; padding: 15px; margin: 15px 0; background: #f9f9f9; border-radius: 5px; }
+.photo b { color: #006400; font-size: 16px; }
+.photo img { max-width: 100%; height: auto; margin: 10px 0; border: 1px solid #ccc; display: block; }
+.photo .loc-info { font-size: 12px; font-weight: bold; padding: 5px; border-radius: 3px; display: inline-block; margin-bottom: 10px; }
 
 .print-only-text { display: none; }
 
-/* Estilos de Impressão (Relatório Técnico) */
 @media print {
-    @page { margin: 15mm; size: A4 portrait;}
-    body { 
-        margin: 0; 
-        max-width: 100%; 
-        font-family: "Times New Roman", Times, serif; 
-        font-size: 11pt;
-        color: #000;
-    }
-    
+    @page { margin: 15mm; size: A4 portrait; }
+    body { margin: 0; font-family: "Times New Roman", serif; font-size: 11pt; }
     button, .no-print { display: none !important; }
-    
-    .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;}
-    .header h2 { color: #000; font-size: 18pt; margin-bottom: 2px;}
-    .header p { color: #000; font-size: 12pt;}
-    h3 { color: #000; border-bottom: 1px solid #000; padding-bottom: 3px; font-size: 14pt; margin-top: 20px;}
-    
-    input, select, textarea {
-        border: none !important;
-        background: transparent !important;
-        -webkit-appearance: none;
-        appearance: none;
-        padding: 0 !important;
-        margin: 0 !important;
-        color: #000 !important;
-        font-family: "Times New Roman", Times, serif;
-        font-size: 11pt;
-        width: 100% !important;
-        resize: none;
-        overflow: hidden;
-    }
-    
-    textarea { display: none; } 
-    .print-only-text { display: block; white-space: pre-wrap; margin-top: 5px;}
-    
-    .form-group label { display: inline-block; margin-bottom: 2px;}
-    .form-group { margin-bottom: 10px; page-break-inside: avoid;}
-    
-    #map-container { border: 1px solid #000; page-break-inside: avoid; margin-bottom: 20px;}
-    #map { height: 14cm !important; }
-    
-    .photo { 
-        page-break-inside: avoid; 
-        border: none; 
-        border-top: 1px solid #000; 
-        background: transparent; 
-        padding: 10px 0;
-        margin: 10px 0;
-        border-radius: 0;
-    }
-    .photo img { max-height: 400px; width: auto; display: block;}
-    .photo input { border-bottom: 1px dashed #000 !important; display: inline-block;}
+    .header { border-bottom: 2px solid #000; }
+    input, textarea, select { border: none !important; appearance: none; padding: 0 !important; }
+    .print-only-text { display: block; white-space: pre-wrap; }
+    textarea { display: none; }
+    .photo { page-break-inside: avoid; border-top: 1px solid #000; border-radius: 0; background: none; }
 }
 </style>
 </head>
@@ -180,271 +95,47 @@ button:hover { background-color: #004d00; }
     <input type="text" id="local">
 </div>
 
-<hr style="border:0; border-top:1px solid #ccc; margin: 20px 0;">
-
-<h3>Informações sobre o Processo</h3>
-
-<div class="form-inline">
-    <div class="form-group" style="flex: 0.4;">
-        <label>Número do processo:</label>
-        <input type="text" id="processo">
-    </div>
-    <div class="form-group" style="flex: 0.6;">
-        <label>Assunto:</label>
-        <select id="assunto">
-            <option>Área embargada</option>
-            <option>Auto de Infração</option>
-            <option>Autorização Direta</option>
-            <option>Regularização Fundiária</option>
-            <option>Denúncia</option>
-        </select>
-    </div>
-</div>
-
-<div class="form-group">
-    <label>Descrição da Atividade / Fato observado:</label>
-    <textarea id="descricao" rows="4"></textarea>
-    <div class="print-only-text" id="print-descricao"></div>
-</div>
+<hr>
 
 <h3>Mapa de Localização Fotográfica</h3>
-
 <div id="map-container">
     <div id="map"></div>
     <div id="mapInset"></div>
 </div>
 
 <h3>Registro Fotográfico</h3>
-
 <div class="no-print">
-    <button onclick="document.getElementById('fileInput').click()">Anexar Arquivo (Galeria)</button>
-    <button onclick="document.getElementById('cameraInput').click()" style="background-color: #005580;">📷 Tirar Foto na Hora</button>
+    <button onclick="document.getElementById('fileInput').click()">Anexar da Galeria</button>
+    <button onclick="document.getElementById('cameraInput').click()" style="background-color: #005580;">📷 Tirar Foto</button>
     
     <input type="file" id="fileInput" multiple accept="image/*" style="display:none" onchange="processarArquivos(this.files, false)">
     <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="processarArquivos(this.files, true)">
     
-    <p style="font-size:12px; color:#666;">
-        * Fotos da galeria: O sistema extrai o GPS dos metadados originais. Caso não existam (ex: fotos recebidas por WhatsApp), aparecerá a ressalva.
-    </p>
+    <p style="font-size:11px; color: #666;">* Fotos da galeria dependem de GPS nos metadados originais do arquivo.</p>
 </div>
 
 <div id="photoList"></div>
 
-<hr class="no-print" style="border:0; border-top:1px solid #ccc; margin: 20px 0;">
-
 <div class="no-print">
     <button onclick="imprimirRelatorio()">Gerar Relatório PDF</button>
-    <button onclick="exportKMZ()">Exportar KML/KMZ</button>
+    <button onclick="exportKMZ()">Exportar KMZ</button>
 </div>
 
 <script>
-// ================= MAPAS E INICIALIZAÇÃO =================
 let map = L.map('map').setView([-14.7, -39.3], 10);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
-L.control.scale({metric: true, imperial: false, position: 'bottomleft'}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-function addGraticule(map) {
-    let graticuleLayer = L.layerGroup().addTo(map);
-    function draw() {
-        graticuleLayer.clearLayers();
-        let bounds = map.getBounds();
-        let zoom = map.getZoom();
-        let step = zoom > 14 ? 0.01 : (zoom > 10 ? 0.05 : (zoom > 8 ? 0.1 : 0.5));
-        let lat1 = Math.floor(bounds.getSouth() / step) * step;
-        let lat2 = Math.ceil(bounds.getNorth() / step) * step;
-        let lon1 = Math.floor(bounds.getWest() / step) * step;
-        let lon2 = Math.ceil(bounds.getEast() / step) * step;
-
-        for (let lat = lat1; lat <= lat2; lat += step) {
-            L.polyline([[lat, -180], [lat, 180]], {color: '#000', weight: 1, opacity: 0.3, dashArray: '4,4'}).addTo(graticuleLayer);
-        }
-        for (let lon = lon1; lon <= lon2; lon += step) {
-            L.polyline([[-90, lon], [90, lon]], {color: '#000', weight: 1, opacity: 0.3, dashArray: '4,4'}).addTo(graticuleLayer);
-        }
-    }
-    map.on('moveend', draw);
-    draw();
-}
-addGraticule(map);
-
-let insetMap = L.map('mapInset', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false });
+let insetMap = L.map('mapInset', { zoomControl: false, attributionControl: false });
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(insetMap);
-
-omnivore.kml('UCs_NGI Ilheus.kml')
-    .on('ready', function() { insetMap.fitBounds(this.getBounds()); })
-    .addTo(insetMap);
-omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
 
 let photoMarkersGroup = L.featureGroup().addTo(map);
 let insetMarkersGroup = L.featureGroup().addTo(insetMap);
 
 let photosData = [];
-let photoIdCounter = 0;
 
-window.onload = function() {
-    let now = new Date();
-    document.getElementById('data').value = now.toISOString().split('T')[0];
-    document.getElementById('hora').value = now.toTimeString().substring(0, 5);
-};
-
+// Conversão Decimal para GMS
 function toDMS(deg, lat) {
     let d = Math.floor(Math.abs(deg));
     let m = Math.floor((Math.abs(deg) - d) * 60);
     let s = (((Math.abs(deg) - d) * 60 - m) * 60).toFixed(2);
-    let dir = lat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W');
-    return `${d}°${m}'${s}" ${dir}`;
-}
-
-// ================= PROCESSAMENTO DE IMAGENS =================
-function processarArquivos(files, isCamera) {
-    if (!files || files.length === 0) return;
-
-    Array.from(files).forEach(file => {
-        const reader = new FileReader();
-
-        reader.onload = function(e) {
-            const base64 = e.target.result;
-            const exifReader = new FileReader();
-
-            exifReader.onload = function(event) {
-                const arrayBuffer = event.target.result;
-                const exifData = EXIF.readFromBinaryFile(arrayBuffer);
-                
-                let lat = null;
-                let lon = null;
-
-                if (exifData && exifData.GPSLatitude) {
-                    lat = convertExifToDecimal(exifData.GPSLatitude, exifData.GPSLatitudeRef);
-                    lon = convertExifToDecimal(exifData.GPSLongitude, exifData.GPSLongitudeRef);
-                }
-
-                if (lat !== null && lon !== null) {
-                    adicionarFotoNoEstado(base64, lat, lon, "Metadados EXIF");
-                } else if (isCamera) {
-                    obterGpsAparelho(base64);
-                } else {
-                    adicionarFotoNoEstado(base64, null, null, "Sem coordenadas no ficheiro");
-                    alert("Aviso: A foto da galeria não possui metadados de localização.");
-                }
-            };
-            exifReader.readAsArrayBuffer(file);
-        };
-        reader.readAsDataURL(file);
-    });
-
-    document.getElementById('fileInput').value = "";
-    document.getElementById('cameraInput').value = "";
-}
-
-function convertExifToDecimal(dmsArray, ref) {
-    if (!dmsArray || dmsArray.length < 3) return null;
-    let d = dmsArray[0].numerator / dmsArray[0].denominator;
-    let m = dmsArray[1].numerator / dmsArray[1].denominator;
-    let s = dmsArray[2].numerator / dmsArray[2].denominator;
-    let dd = d + (m / 60) + (s / 3600);
-    if (ref === "S" || ref === "W") dd *= -1;
-    return dd;
-}
-
-function obterGpsAparelho(base64) {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            pos => adicionarFotoNoEstado(base64, pos.coords.latitude, pos.coords.longitude, "GPS Atual"),
-            err => adicionarFotoNoEstado(base64, null, null, "GPS Indisponível"),
-            { enableHighAccuracy: true, timeout: 5000 }
-        );
-    } else {
-        adicionarFotoNoEstado(base64, null, null, "Sem suporte a GPS");
-    }
-}
-
-function adicionarFotoNoEstado(base64, lat, lon, origemLoc) {
-    photoIdCounter++;
-    photosData.push({
-        id: photoIdCounter,
-        base64: base64,
-        lat: lat,
-        lon: lon,
-        origemLoc: origemLoc,
-        caption: ""
-    });
-    renderizarInterface();
-}
-
-function removerFoto(id) {
-    if(confirm("Deseja remover esta fotografia?")) {
-        photosData = photosData.filter(p => p.id !== id);
-        renderizarInterface();
-    }
-}
-
-function renderizarInterface() {
-    let listDiv = document.getElementById('photoList');
-    listDiv.innerHTML = ''; 
-    photoMarkersGroup.clearLayers();
-    insetMarkersGroup.clearLayers();
-    
-    let bounds = [];
-
-    photosData.forEach((p, index) => {
-        let figNum = index + 1;
-        let isLocalizado = (p.lat !== null && p.lon !== null);
-        let coordText = isLocalizado ? `${toDMS(p.lat, true)} | ${toDMS(p.lon, false)}` : "Sem localização";
-
-        if (isLocalizado) {
-            let marker = L.marker([p.lat, p.lon]).addTo(photoMarkersGroup);
-            marker.bindTooltip("Figura " + figNum, { permanent: true, direction: 'top', className: 'marker-tooltip' }).openTooltip();
-            L.circleMarker([p.lat, p.lon], { radius: 4, color: 'red' }).addTo(insetMarkersGroup);
-            bounds.push([p.lat, p.lon]);
-        }
-
-        let div = document.createElement("div");
-        div.className = "photo";
-        div.innerHTML = `
-            <div style="display:flex; justify-content:space-between;">
-                <b>Figura ${figNum}</b>
-                <button class="no-print" style="background:#c82333; padding:5px;" onclick="removerFoto(${p.id})">🗑️ Remover</button>
-            </div>
-            <img src="${p.base64}"><br>
-            <span style="font-size:12px; font-weight:bold; color:${isLocalizado ? '#555' : 'red'};">
-                📍 Localização (${p.origemLoc}): ${coordText}
-            </span><br>
-            <div style="margin-top:10px;">
-                <label>Legenda:</label><br>
-                <input type="text" value="${p.caption}" onchange="photosData.find(x=>x.id===${p.id}).caption=this.value">
-            </div>
-        `;
-        listDiv.appendChild(div);
-    });
-
-    if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
-}
-
-function imprimirRelatorio() {
-    document.getElementById('print-servidores').innerHTML = document.getElementById('servidores').value.replace(/\n/g, '<br>');
-    document.getElementById('print-descricao').innerHTML = document.getElementById('descricao').value.replace(/\n/g, '<br>');
-    setTimeout(() => { window.print(); }, 800);
-}
-
-function exportKMZ() {
-    let zip = new JSZip();
-    let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Relatório</name>`;
-    photosData.forEach((p, i) => {
-        if (!p.lat || !p.lon) return; 
-        let img = `foto${i+1}.jpg`;
-        zip.file(img, p.base64.split(',')[1], {base64: true});
-        kml += `<Placemark><name>Figura ${i+1}</name><description><![CDATA[<img src="${img}" width="300"><br>${p.caption}]]></description><Point><coordinates>${p.lon},${p.lat},0</coordinates></Point></Placemark>`;
-    });
-    kml += `</Document></kml>`;
-    zip.file("doc.kml", kml);
-    zip.generateAsync({type: "blob"}).then(content => {
-        let a = document.createElement("a");
-        a.href = URL.createObjectURL(content);
-        a.download = "relatorio.kmz";
-        a.click();
-    });
-}
-</script>
-
-</body>
-</html>
+    let dir = lat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W
