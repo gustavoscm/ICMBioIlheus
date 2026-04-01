@@ -68,7 +68,7 @@ button:hover { background-color: #004d00; }
     width: 150px; 
     position: absolute; 
     bottom: 20px; 
-    right: 20px; /* Canto inferior direito conforme solicitado */
+    right: 20px; 
     border: 2px solid black; 
     z-index: 1000;
     background: white;
@@ -81,7 +81,6 @@ button:hover { background-color: #004d00; }
 
 .marker-tooltip { background: rgba(255, 255, 255, 0.9); border: 1px solid #000; font-weight: bold; color: #000; }
 
-/* Ocultar divs de impressão na tela */
 .print-only-text { display: none; }
 
 /* Estilos de Impressão (Relatório Técnico) */
@@ -95,7 +94,6 @@ button:hover { background-color: #004d00; }
         color: #000;
     }
     
-    /* Esconder elementos interativos */
     button, .no-print { display: none !important; }
     
     .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;}
@@ -103,7 +101,6 @@ button:hover { background-color: #004d00; }
     .header p { color: #000; font-size: 12pt;}
     h3 { color: #000; border-bottom: 1px solid #000; padding-bottom: 3px; font-size: 14pt; margin-top: 20px;}
     
-    /* Transformar inputs/textareas em texto corrido */
     input, select, textarea {
         border: none !important;
         background: transparent !important;
@@ -119,7 +116,7 @@ button:hover { background-color: #004d00; }
         overflow: hidden;
     }
     
-    textarea { display: none; } /* Oculta o textarea na impressão para usar a div substituta */
+    textarea { display: none; } 
     .print-only-text { display: block; white-space: pre-wrap; margin-top: 5px;}
     
     .form-group label { display: inline-block; margin-bottom: 2px;}
@@ -220,9 +217,15 @@ button:hover { background-color: #004d00; }
 <h3>Registro Fotográfico</h3>
 
 <div class="no-print">
-    <button onclick="abrirGaleria()">Anexar Imagem (Extrair GPS)</button>
+    <button onclick="abrirGaleria()">Anexar Arquivo (Galeria)</button>
+    <button onclick="abrirCamera()" style="background-color: #005580;">📷 Tirar Foto na Hora</button>
+    
     <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
-    <p style="font-size:12px; color:#666;">* As coordenadas serão extraídas automaticamente dos metadados (EXIF) de cada foto anexada.</p>
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
+    
+    <p style="font-size:12px; color:#666;">
+        * O sistema prioriza as coordenadas do arquivo (EXIF). Caso não existam (ex: fotos tiradas na hora), utilizará o GPS do aparelho.
+    </p>
 </div>
 
 <div id="photoList"></div>
@@ -235,25 +238,18 @@ button:hover { background-color: #004d00; }
 </div>
 
 <script>
-// Inicialização do Mapa Principal
+// Inicialização dos Mapas
 let map = L.map('map').setView([-14.7, -39.3], 10);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
-
-// Adicionar Barra de Escala no mapa principal
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 L.control.scale({metric: true, imperial: false, position: 'bottomleft'}).addTo(map);
 
-// Função para gerar Grade de Coordenadas (Graticule)
 function addGraticule(map) {
     let graticuleLayer = L.layerGroup().addTo(map);
     function draw() {
         graticuleLayer.clearLayers();
         let bounds = map.getBounds();
         let zoom = map.getZoom();
-        // Ajusta a densidade da grade conforme o zoom
         let step = zoom > 14 ? 0.01 : (zoom > 10 ? 0.05 : (zoom > 8 ? 0.1 : 0.5));
-
         let lat1 = Math.floor(bounds.getSouth() / step) * step;
         let lat2 = Math.ceil(bounds.getNorth() / step) * step;
         let lon1 = Math.floor(bounds.getWest() / step) * step;
@@ -266,206 +262,4 @@ function addGraticule(map) {
             L.polyline([[-90, lon], [90, lon]], {color: '#000', weight: 1, opacity: 0.3, dashArray: '4,4'}).addTo(graticuleLayer);
         }
     }
-    map.on('moveend', draw);
-    draw();
-}
-addGraticule(map); // Ativa a grade
-
-// Inicialização do Mapa Inset (Miniatura no canto inferior direito)
-let insetMap = L.map('mapInset', {
-    zoomControl: false, 
-    attributionControl: false, 
-    dragging: false, 
-    scrollWheelZoom: false,
-    doubleClickZoom: false
-});
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(insetMap);
-
-// Carregar KML e fixar o Mini Mapa na extensão do KML
-omnivore.kml('UCs_NGI Ilheus.kml')
-    .on('ready', function() {
-        // Fixar a visão na extensão geral da UC
-        insetMap.fitBounds(this.getBounds());
-    })
-    .addTo(insetMap);
-// Opcional: Adicionar a layer KML também no mapa principal
-omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
-
-// Grupos de marcadores para as fotos
-let photoMarkersGroup = L.featureGroup().addTo(map);
-let insetMarkersGroup = L.featureGroup().addTo(insetMap);
-
-let photosData = [];
-let photoCount = 0;
-
-window.onload = function() {
-    let now = new Date();
-    document.getElementById('data').value = now.toISOString().split('T')[0];
-    document.getElementById('hora').value = now.toTimeString().substring(0, 5);
-};
-
-// Conversão Decimal para Graus, Minutos e Segundos
-function toDMS(deg, lat) {
-    let d = Math.floor(Math.abs(deg));
-    let m = Math.floor((Math.abs(deg) - d) * 60);
-    let s = (((Math.abs(deg) - d) * 60 - m) * 60).toFixed(2);
-    let dir = lat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W');
-    return `${d}°${m}'${s}" ${dir}`;
-}
-
-function abrirGaleria() { 
-    document.getElementById('fileInput').click(); 
-}
-
-document.getElementById('fileInput').addEventListener('change', e => handleFiles(e.target.files));
-
-function handleFiles(files) {
-    if ((photosData.length + files.length) > 15) { 
-        alert("Recomendado máximo de 15 fotos para não sobrecarregar a memória/PDF."); 
-    }
-
-    Array.from(files).forEach(file => {
-        let reader = new FileReader();
-        
-        reader.onload = e => {
-            EXIF.getData(file, function() {
-                let latExif = EXIF.getTag(this, "GPSLatitude");
-                let lonExif = EXIF.getTag(this, "GPSLongitude");
-                let latRef = EXIF.getTag(this, "GPSLatitudeRef");
-                let lonRef = EXIF.getTag(this, "GPSLongitudeRef");
-
-                // Função segura para converter o array EXIF para Decimal
-                function convertExifToDecimal(dmsArray, ref) {
-                    if (!dmsArray || dmsArray.length < 3) return null;
-                    let d = dmsArray[0].valueOf();
-                    let m = dmsArray[1].valueOf();
-                    let s = dmsArray[2].valueOf();
-                    let dd = d + (m / 60) + (s / 3600);
-                    if (ref === "S" || ref === "W") dd *= -1;
-                    return dd;
-                }
-
-                let lat = convertExifToDecimal(latExif, latRef);
-                let lon = convertExifToDecimal(lonExif, lonRef);
-
-                photoCount++;
-                let id = Date.now() + photoCount;
-                let coordText = "Sem localização no EXIF";
-
-                if (lat && lon) {
-                    coordText = `${toDMS(lat, true)} | ${toDMS(lon, false)}`;
-                    
-                    // Adiciona marcador no Mapa Principal com o rótulo da Figura
-                    let marker = L.marker([lat, lon]).addTo(photoMarkersGroup);
-                    marker.bindTooltip("Figura " + photoCount, {
-                        permanent: true, 
-                        direction: 'top', 
-                        className: 'marker-tooltip',
-                        offset: [0, -25]
-                    }).openTooltip();
-
-                    // Adiciona pontinho no Inset Map (Mapa Geral)
-                    L.circleMarker([lat, lon], {
-                        radius: 4, 
-                        color: 'red', 
-                        fillColor: '#f03', 
-                        fillOpacity: 0.8
-                    }).addTo(insetMarkersGroup);
-                    
-                    // Centraliza temporariamente a visão no último ponto adicionado
-                    map.setView([lat, lon], 14);
-                }
-
-                photosData.push({ id, base64: e.target.result, caption: "", lat, lon, coordText });
-
-                let div = document.createElement("div");
-                div.className = "photo";
-
-                div.innerHTML = `
-                    <b>Figura ${photoCount}</b><br>
-                    <img src="${e.target.result}"><br>
-                    <span style="font-size:12px; color:#555;">📍 Localização EXIF: ${coordText}</span><br>
-                    <div style="margin-top:10px;">
-                        <label>Legenda da imagem:</label><br>
-                        <input type="text" placeholder="Descreva o que é visto nesta foto..." onchange="updateCaption(${id}, this.value)">
-                    </div>
-                `;
-
-                document.getElementById('photoList').appendChild(div);
-            });
-        };
-        reader.readAsDataURL(file);
-    });
-    
-    // Reseta o input para permitir selecionar a mesma foto caso necessário
-    document.getElementById('fileInput').value = '';
-}
-
-function updateCaption(id, value) {
-    let p = photosData.find(p => p.id === id);
-    if(p) p.caption = value;
-}
-
-function ajustarMapaParaImpressao() {
-    // Sincroniza os textareas com as divs para a impressão ficar correta
-    document.getElementById('print-servidores').innerHTML = document.getElementById('servidores').value.replace(/\n/g, '<br>');
-    document.getElementById('print-descricao').innerHTML = document.getElementById('descricao').value.replace(/\n/g, '<br>');
-
-    // Centraliza o mapa principal para abranger TODOS os pontos anexados
-    if (Object.keys(photoMarkersGroup._layers).length > 0) {
-        let bounds = photoMarkersGroup.getBounds();
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-    }
-}
-
-function imprimirRelatorio() {
-    ajustarMapaParaImpressao();
-    
-    // Pequeno timeout para garantir que o mapa re-renderizou no novo enquadramento
-    setTimeout(() => {
-        window.print();
-    }, 800);
-}
-
-function exportKMZ() {
-    let zip = new JSZip();
-    let kml = `<?xml version="1.0" encoding="UTF-8"?>
-    <kml xmlns="http://www.opengis.net/kml/2.2">
-    <Document>
-      <name>Relatório Fotográfico</name>`;
-
-    photosData.forEach((p, i) => {
-        if (!p.lat || !p.lon) return; // Só exporta fotos com coordenadas
-
-        let img = `foto${i+1}.jpg`;
-        let base64 = p.base64.split(',')[1];
-        zip.file(img, base64, {base64: true});
-
-        kml += `
-        <Placemark>
-            <name>Figura ${i+1}</name>
-            <description><![CDATA[
-                <img src="${img}" width="300"><br>
-                <b>Legenda:</b> ${p.caption}<br>
-                <b>Coordenadas:</b> ${p.coordText}
-            ]]></description>
-            <Point>
-                <coordinates>${p.lon},${p.lat},0</coordinates>
-            </Point>
-        </Placemark>`;
-    });
-
-    kml += `</Document></kml>`;
-    zip.file("doc.kml", kml);
-
-    zip.generateAsync({type: "blob"}).then(content => {
-        let a = document.createElement("a");
-        a.href = URL.createObjectURL(content);
-        a.download = "relatorio_fotografico.kmz";
-        a.click();
-    });
-}
-</script>
-
-</body>
-</html>
+    map.on
