@@ -138,4 +138,142 @@ function toDMS(deg, lat) {
     let d = Math.floor(Math.abs(deg));
     let m = Math.floor((Math.abs(deg) - d) * 60);
     let s = (((Math.abs(deg) - d) * 60 - m) * 60).toFixed(2);
-    let dir = lat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W
+    let dir = lat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W');
+    return `${d}°${m}'${s}" ${dir}`;
+}
+
+// Conversão Robusta de EXIF para Decimal
+function convertExifToDecimal(dmsArray, ref) {
+    if (!dmsArray || dmsArray.length < 3) return null;
+    
+    const getVal = (val) => {
+        if (typeof val === 'object' && val.numerator !== undefined) return val.numerator / val.denominator;
+        return Number(val);
+    };
+
+    let d = getVal(dmsArray[0]);
+    let m = getVal(dmsArray[1]);
+    let s = getVal(dmsArray[2]);
+    
+    let dd = d + (m / 60) + (s / 3600);
+    if (ref === "S" || ref === "W") dd *= -1;
+    return dd;
+}
+
+// Processamento de Arquivos
+async function processarArquivos(files, isCamera) {
+    if (!files || files.length === 0) return;
+
+    for (let file of Array.from(files)) {
+        try {
+            const base64 = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.readAsDataURL(file);
+            });
+
+            const arrayBuffer = await file.arrayBuffer();
+            let lat = null, lon = null, origem = "Sem localização";
+
+            try {
+                const exifData = EXIF.readFromBinaryFile(arrayBuffer);
+                if (exifData && exifData.GPSLatitude) {
+                    lat = convertExifToDecimal(exifData.GPSLatitude, exifData.GPSLatitudeRef);
+                    lon = convertExifToDecimal(exifData.GPSLongitude, exifData.GPSLongitudeRef);
+                    origem = "Metadados do Arquivo";
+                }
+            } catch (e) { console.warn("Erro EXIF ignorado para permitir upload."); }
+
+            if (lat === null && isCamera && navigator.geolocation) {
+                // Tenta GPS do dispositivo apenas para fotos tiradas na hora
+                const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout: 5000}));
+                lat = pos.coords.latitude;
+                lon = pos.coords.longitude;
+                origem = "GPS Atual do Dispositivo";
+            }
+
+            adicionarFoto(base64, lat, lon, origem);
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao processar imagem. Verifique se o formato é suportado.");
+        }
+    }
+    document.getElementById('fileInput').value = "";
+    document.getElementById('cameraInput').value = "";
+}
+
+function adicionarFoto(base64, lat, lon, origem) {
+    const id = Date.now() + Math.random();
+    photosData.push({ id, base64, lat, lon, origem, caption: "" });
+    renderizar();
+}
+
+function removerFoto(id) {
+    if(confirm("Deseja remover esta imagem?")) {
+        photosData = photosData.filter(p => p.id !== id);
+        renderizar();
+    }
+}
+
+function renderizar() {
+    const list = document.getElementById('photoList');
+    list.innerHTML = '';
+    photoMarkersGroup.clearLayers();
+    insetMarkersGroup.clearLayers();
+    let bounds = [];
+
+    photosData.forEach((p, index) => {
+        const figNum = index + 1;
+        const isLoc = p.lat !== null;
+        
+        if (isLoc) {
+            L.marker([p.lat, p.lon]).addTo(photoMarkersGroup).bindTooltip("Figura " + figNum, {permanent: true});
+            L.circleMarker([p.lat, p.lon], {radius: 4, color: 'red'}).addTo(insetMarkersGroup);
+            bounds.push([p.lat, p.lon]);
+        }
+
+        const div = document.createElement("div");
+        div.className = "photo";
+        div.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <b>Figura ${figNum}</b>
+                <button class="no-print" style="background:#c82333; margin:0; padding:5px 10px;" onclick="removerFoto(${p.id})">Remover</button>
+            </div>
+            <img src="${p.base64}">
+            <div class="loc-info" style="background: ${isLoc ? '#e8f5e9' : '#ffebee'}; color: ${isLoc ? '#2e7d32' : '#c62828'};">
+                📍 Localização: ${isLoc ? toDMS(p.lat, true) + " | " + toDMS(p.lon, false) : "⚠️ LOCALIZAÇÃO NÃO ENCONTRADA NO ARQUIVO"} (${p.origem})
+            </div>
+            <input type="text" placeholder="Legenda da imagem..." value="${p.caption}" onchange="photosData.find(x=>x.id===${p.id}).caption=this.value">
+        `;
+        list.appendChild(div);
+    });
+
+    if (bounds.length > 0) map.fitBounds(bounds, {padding: [50, 50], maxZoom: 15});
+}
+
+function imprimirRelatorio() {
+    document.getElementById('print-servidores').innerText = document.getElementById('servidores').value;
+    window.print();
+}
+
+function exportKMZ() {
+    let zip = new JSZip();
+    let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
+    photosData.forEach((p, i) => {
+        if (!p.lat) return;
+        let name = `foto${i+1}.jpg`;
+        zip.file(name, p.base64.split(',')[1], {base64: true});
+        kml += `<Placemark><name>Figura ${i+1}</name><description>${p.caption}</description><Point><coordinates>${p.lon},${p.lat},0</coordinates></Point></Placemark>`;
+    });
+    kml += `</Document></kml>`;
+    zip.file("doc.kml", kml);
+    zip.generateAsync({type:"blob"}).then(c => {
+        let a = document.createElement("a");
+        a.href = URL.createObjectURL(c);
+        a.download = "relatorio.kmz";
+        a.click();
+    });
+}
+</script>
+</body>
+</html>
