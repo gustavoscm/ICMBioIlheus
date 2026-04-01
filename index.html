@@ -262,4 +262,185 @@ function addGraticule(map) {
             L.polyline([[-90, lon], [90, lon]], {color: '#000', weight: 1, opacity: 0.3, dashArray: '4,4'}).addTo(graticuleLayer);
         }
     }
-    map.on
+    map.on('moveend', draw);
+    draw();
+}
+addGraticule(map);
+
+let insetMap = L.map('mapInset', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(insetMap);
+
+omnivore.kml('UCs_NGI Ilheus.kml')
+    .on('ready', function() { insetMap.fitBounds(this.getBounds()); })
+    .addTo(insetMap);
+omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
+
+let photoMarkersGroup = L.featureGroup().addTo(map);
+let insetMarkersGroup = L.featureGroup().addTo(insetMap);
+let photosData = [];
+let photoCount = 0;
+
+window.onload = function() {
+    let now = new Date();
+    document.getElementById('data').value = now.toISOString().split('T')[0];
+    document.getElementById('hora').value = now.toTimeString().substring(0, 5);
+};
+
+function toDMS(deg, lat) {
+    let d = Math.floor(Math.abs(deg));
+    let m = Math.floor((Math.abs(deg) - d) * 60);
+    let s = (((Math.abs(deg) - d) * 60 - m) * 60).toFixed(2);
+    let dir = lat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W');
+    return `${d}°${m}'${s}" ${dir}`;
+}
+
+// Controles dos botões de Anexo e Câmera
+function abrirGaleria() { document.getElementById('fileInput').click(); }
+function abrirCamera() { document.getElementById('cameraInput').click(); }
+
+document.getElementById('fileInput').addEventListener('change', e => processarArquivos(e.target.files));
+document.getElementById('cameraInput').addEventListener('change', e => processarArquivos(e.target.files));
+
+function processarArquivos(files) {
+    if ((photosData.length + files.length) > 15) { 
+        alert("Recomendado máximo de 15 fotos para não sobrecarregar a memória/PDF."); 
+    }
+
+    Array.from(files).forEach(file => {
+        let reader = new FileReader();
+        
+        reader.onload = e => {
+            let base64 = e.target.result;
+            
+            // Tenta puxar do EXIF primeiro
+            EXIF.getData(file, function() {
+                let latExif = EXIF.getTag(this, "GPSLatitude");
+                let lonExif = EXIF.getTag(this, "GPSLongitude");
+                let latRef = EXIF.getTag(this, "GPSLatitudeRef");
+                let lonRef = EXIF.getTag(this, "GPSLongitudeRef");
+
+                function convertExifToDecimal(dmsArray, ref) {
+                    if (!dmsArray || dmsArray.length < 3) return null;
+                    let d = dmsArray[0].valueOf();
+                    let m = dmsArray[1].valueOf();
+                    let s = dmsArray[2].valueOf();
+                    let dd = d + (m / 60) + (s / 3600);
+                    if (ref === "S" || ref === "W") dd *= -1;
+                    return dd;
+                }
+
+                let lat = convertExifToDecimal(latExif, latRef);
+                let lon = convertExifToDecimal(lonExif, lonRef);
+
+                if (lat && lon) {
+                    // Achou no EXIF
+                    renderizarFotoHtml(base64, lat, lon, "Metadados/EXIF da Imagem");
+                } else {
+                    // Não achou no EXIF (comum em fotos tiradas na hora), usa o GPS do dispositivo
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            pos => renderizarFotoHtml(base64, pos.coords.latitude, pos.coords.longitude, "GPS do Dispositivo no momento da captura"),
+                            err => renderizarFotoHtml(base64, null, null, "Não foi possível obter localização")
+                        );
+                    } else {
+                        renderizarFotoHtml(base64, null, null, "Sem localização");
+                    }
+                }
+            });
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // Reseta inputs
+    document.getElementById('fileInput').value = '';
+    document.getElementById('cameraInput').value = '';
+}
+
+// Função isolada para criar o HTML e o marcador (evita duplicação de código)
+function renderizarFotoHtml(base64, lat, lon, origemLoc) {
+    photoCount++;
+    let id = Date.now() + photoCount;
+    let coordText = "Sem localização";
+
+    if (lat && lon) {
+        coordText = `${toDMS(lat, true)} | ${toDMS(lon, false)}`;
+        
+        let marker = L.marker([lat, lon]).addTo(photoMarkersGroup);
+        marker.bindTooltip("Figura " + photoCount, {
+            permanent: true, direction: 'top', className: 'marker-tooltip', offset: [0, -25]
+        }).openTooltip();
+
+        L.circleMarker([lat, lon], {
+            radius: 4, color: 'red', fillColor: '#f03', fillOpacity: 0.8
+        }).addTo(insetMarkersGroup);
+        
+        map.setView([lat, lon], 14);
+    }
+
+    photosData.push({ id, base64, caption: "", lat, lon, coordText });
+
+    let div = document.createElement("div");
+    div.className = "photo";
+    div.innerHTML = `
+        <b>Figura ${photoCount}</b><br>
+        <img src="${base64}"><br>
+        <span style="font-size:12px; color:#555;">📍 Localização (${origemLoc}): ${coordText}</span><br>
+        <div style="margin-top:10px;">
+            <label>Legenda da imagem:</label><br>
+            <input type="text" placeholder="Descreva o que é visto nesta foto..." onchange="updateCaption(${id}, this.value)">
+        </div>
+    `;
+    document.getElementById('photoList').appendChild(div);
+}
+
+function updateCaption(id, value) {
+    let p = photosData.find(p => p.id === id);
+    if(p) p.caption = value;
+}
+
+function ajustarMapaParaImpressao() {
+    document.getElementById('print-servidores').innerHTML = document.getElementById('servidores').value.replace(/\n/g, '<br>');
+    document.getElementById('print-descricao').innerHTML = document.getElementById('descricao').value.replace(/\n/g, '<br>');
+
+    if (Object.keys(photoMarkersGroup._layers).length > 0) {
+        let bounds = photoMarkersGroup.getBounds();
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+    }
+}
+
+function imprimirRelatorio() {
+    ajustarMapaParaImpressao();
+    setTimeout(() => { window.print(); }, 800);
+}
+
+function exportKMZ() {
+    let zip = new JSZip();
+    let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Relatório Fotográfico</name>`;
+
+    photosData.forEach((p, i) => {
+        if (!p.lat || !p.lon) return; 
+        let img = `foto${i+1}.jpg`;
+        let base64 = p.base64.split(',')[1];
+        zip.file(img, base64, {base64: true});
+
+        kml += `<Placemark>
+            <name>Figura ${i+1}</name>
+            <description><![CDATA[<img src="${img}" width="300"><br><b>Legenda:</b> ${p.caption}<br><b>Coordenadas:</b> ${p.coordText}]]></description>
+            <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
+        </Placemark>`;
+    });
+
+    kml += `</Document></kml>`;
+    zip.file("doc.kml", kml);
+
+    zip.generateAsync({type: "blob"}).then(content => {
+        let a = document.createElement("a");
+        a.href = URL.createObjectURL(content);
+        a.download = "relatorio_fotografico.kmz";
+        a.click();
+    });
+}
+</script>
+
+</body>
+</html>
