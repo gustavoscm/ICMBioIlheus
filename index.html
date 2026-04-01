@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório Fotográfico Ambiental</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+
+<style>
+body { font-family: Arial; margin:20px;}
+#map { height:400px; margin:10px 0;}
+.photo { margin:10px 0;}
+</style>
+</head>
+
+<body>
+
+<h2>Relatório Fotográfico Ambiental</h2>
+
+Data: <input type="date" id="data"><br><br>
+Hora: <input type="time" id="hora"><br><br>
+
+UC:
+<select id="uc">
+<option>Reserva Biológica de Una</option>
+<option>Refúgio de Vida Silvestre de Una</option>
+<option>Parque Nacional da Serra das Lontras</option>
+</select><br><br>
+
+Local: <input type="text" id="local"><br><br>
+
+<button onclick="getLocation()">Obter localização</button>
+
+Lat: <input id="lat" readonly>
+Lon: <input id="lon" readonly>
+
+<div id="map"></div>
+
+<hr>
+
+<h3>Fotos</h3>
+<input type="file" id="photos" multiple accept="image/*"><br><br>
+
+<div id="photoList"></div>
+
+<button onclick="exportKMZ()">Exportar KMZ</button>
+
+<script>
+
+let map = L.map('map').setView([-14.7,-39.3],10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+// carregar KML
+omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
+
+let marker;
+let photosData = [];
+
+function getLocation(){
+navigator.geolocation.getCurrentPosition(pos=>{
+let lat = pos.coords.latitude;
+let lon = pos.coords.longitude;
+
+document.getElementById('lat').value = lat;
+document.getElementById('lon').value = lon;
+
+if(marker) map.removeLayer(marker);
+
+marker = L.marker([lat,lon]).addTo(map);
+map.setView([lat,lon],15);
+});
+}
+
+// adicionar fotos
+document.getElementById('photos').addEventListener('change', function(e){
+
+if(photosData.length >= 10){
+alert("Máximo 10 fotos");
+return;
+}
+
+Array.from(e.target.files).forEach((file,i)=>{
+
+if(photosData.length >= 10) return;
+
+let reader = new FileReader();
+
+reader.onload = function(ev){
+
+let id = Date.now();
+
+photosData.push({
+id,
+file,
+base64: ev.target.result,
+caption:"",
+lat: document.getElementById('lat').value,
+lon: document.getElementById('lon').value
+});
+
+let div = document.createElement("div");
+div.className="photo";
+
+div.innerHTML = `
+<img src="${ev.target.result}" width="200"><br>
+Legenda: <input onchange="updateCaption(${id}, this.value)">
+`;
+
+document.getElementById('photoList').appendChild(div);
+
+};
+
+reader.readAsDataURL(file);
+
+});
+
+});
+
+function updateCaption(id, value){
+let p = photosData.find(p=>p.id===id);
+p.caption = value;
+}
+
+// EXPORTAR KMZ COM FOTOS
+function exportKMZ(){
+
+let zip = new JSZip();
+
+let kml = `
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+<name>Relatório</name>
+`;
+
+photosData.forEach((p,i)=>{
+
+let imgName = `foto${i}.jpg`;
+
+let base64 = p.base64.split(',')[1];
+
+zip.file(imgName, base64, {base64:true});
+
+kml += `
+<Placemark>
+<name>Foto ${i+1}</name>
+<description><![CDATA[
+<img src="${imgName}" width="300"><br>
+${p.caption}
+]]></description>
+<Point>
+<coordinates>${p.lon},${p.lat},0</coordinates>
+</Point>
+</Placemark>
+`;
+
+});
+
+kml += `</Document></kml>`;
+
+zip.file("doc.kml", kml);
+
+zip.generateAsync({type:"blob"}).then(content=>{
+let a = document.createElement("a");
+a.href = URL.createObjectURL(content);
+a.download = "relatorio.kmz";
+a.click();
+});
+
+}
+
+</script>
+
+</body>
+</html>
