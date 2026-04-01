@@ -12,17 +12,30 @@
 <style>
 body { font-family: Arial; margin:20px;}
 #map { height:400px; margin:10px 0;}
-.photo { margin:10px 0; border:1px solid #ccc; padding:10px;}
-.btn { padding:8px; margin:5px; cursor:pointer;}
+.photo { border:1px solid #ccc; padding:10px; margin:10px 0;}
+.header {display:flex; align-items:center; border-bottom:2px solid #006400;}
+.header img {height:60px; margin-right:15px;}
 </style>
 </head>
 
 <body>
 
+<!-- CABEÇALHO -->
+<div class="header">
+<img src="Logo_ICMBio_2011_Colorida.png">
+<div>
 <h2>Relatório Fotográfico Ambiental</h2>
+<p>Instituto Chico Mendes de Conservação da Biodiversidade</p>
+</div>
+</div>
 
-<!-- ================== INFORMAÇÕES INICIAIS ================== -->
-Data: <input type="date" id="data" readonly><br><br>
+<br>
+
+<!-- NOVO CAMPO -->
+Servidores participantes da vistoria:<br>
+<textarea rows="5" style="width:100%"></textarea><br><br>
+
+Data: <input type="date" id="data" readonly>
 Hora: <input type="time" id="hora" readonly><br><br>
 
 UC:
@@ -34,17 +47,16 @@ UC:
 
 Local: <input type="text" id="local"><br><br>
 
-<button class="btn" onclick="getLocation()">Obter localização</button>
-<button class="btn" onclick="manualCoords()">Inserir coordenadas manualmente</button><br><br>
+<button onclick="getLocation()">Obter localização</button>
+<button onclick="manualCoords()">Inserir coordenadas manualmente</button><br><br>
 
-Lat: <input id="lat" readonly>
-Lon: <input id="lon" readonly>
+Coordenadas (GMS):<br>
+<input id="coords" readonly style="width:100%">
 
 <div id="map"></div>
 
 <hr>
 
-<!-- ================== PROCESSO ================== -->
 <h3>Informações sobre o Processo</h3>
 
 Número do processo:<br>
@@ -64,50 +76,54 @@ Descrição:<br>
 
 <hr>
 
-<!-- ================== FOTOS ================== -->
 <h3>Registro Fotográfico</h3>
 
-<button class="btn" onclick="abrirGaleria()">Adicionar imagem do celular</button>
-<button class="btn" onclick="abrirCamera()">Fazer registro fotográfico</button>
+<button onclick="abrirGaleria()">Adicionar imagem</button>
+<button onclick="abrirCamera()">Tirar foto</button>
 
-<input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+<input type="file" id="fileInput" multiple accept="image/*" style="display:none">
 
 <div id="photoList"></div>
 
 <hr>
 
-<button class="btn" onclick="window.print()">Imprimir Relatório (PDF)</button>
-<button class="btn" onclick="exportKMZ()">Exportar KMZ</button>
+<button onclick="window.print()">Imprimir PDF</button>
+<button onclick="exportKMZ()">Exportar KMZ</button>
 
 <script>
 
 let map = L.map('map').setView([-14.7,-39.3],10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-// KML base
 omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
 
 let marker;
 let photosData = [];
 let photoCount = 0;
 
-// DATA AUTOMÁTICA
+// DATA
 window.onload = function(){
 let now = new Date();
-document.getElementById('data').value = now.toISOString().split('T')[0];
-document.getElementById('hora').value = now.toTimeString().substring(0,5);
+data.value = now.toISOString().split('T')[0];
+hora.value = now.toTimeString().substring(0,5);
 };
 
-// GEOLOCALIZAÇÃO
+// CONVERTER GMS
+function toDMS(deg, lat){
+let d = Math.floor(Math.abs(deg));
+let m = Math.floor((Math.abs(deg)-d)*60);
+let s = (((Math.abs(deg)-d)*60-m)*60).toFixed(2);
+let dir = lat ? (deg>=0?'N':'S'):(deg>=0?'E':'W');
+return `${d}°${m}'${s}" ${dir}`;
+}
+
+// LOCALIZAÇÃO
 function getLocation(){
 navigator.geolocation.getCurrentPosition(pos=>{
 let lat = pos.coords.latitude;
 let lon = pos.coords.longitude;
 
-document.getElementById('lat').value = lat;
-document.getElementById('lon').value = lon;
+coords.value = toDMS(lat,true)+" | "+toDMS(lon,false);
 
-if(marker) map.removeLayer(marker);
 marker = L.marker([lat,lon]).addTo(map);
 map.setView([lat,lon],15);
 });
@@ -115,82 +131,72 @@ map.setView([lat,lon],15);
 
 // MANUAL
 function manualCoords(){
-let lat = prompt("Latitude:");
-let lon = prompt("Longitude:");
+let lat = parseFloat(prompt("Latitude:"));
+let lon = parseFloat(prompt("Longitude:"));
 
-if(lat && lon){
-document.getElementById('lat').value = lat;
-document.getElementById('lon').value = lon;
+coords.value = toDMS(lat,true)+" | "+toDMS(lon,false);
 
-if(marker) map.removeLayer(marker);
 marker = L.marker([lat,lon]).addTo(map);
 map.setView([lat,lon],15);
-}
 }
 
 // GALERIA
 function abrirGaleria(){
-document.getElementById('fileInput').click();
+fileInput.click();
 }
 
 // CAMERA
 function abrirCamera(){
 let input = document.createElement('input');
-input.type = 'file';
-input.accept = 'image/*';
-input.capture = 'environment';
+input.type='file';
+input.accept='image/*';
+input.capture='environment';
 
-input.onchange = e=>{
-handleFiles(e.target.files);
-};
-
+input.onchange = e=>handleFiles(e.target.files);
 input.click();
 }
 
 // PROCESSAR FOTOS
-document.getElementById('fileInput').addEventListener('change', e=>{
-handleFiles(e.target.files);
-});
+fileInput.addEventListener('change',e=>handleFiles(e.target.files));
 
 function handleFiles(files){
 
-if(photosData.length >= 10){
-alert("Máximo de 10 fotos");
+if(photosData.length>=10){
+alert("Máx 10 fotos");
 return;
 }
 
 Array.from(files).forEach(file=>{
 
-if(photosData.length >= 10) return;
-
 let reader = new FileReader();
 
-reader.onload = function(ev){
+reader.onload = e=>{
 
 photoCount++;
 
+let lat = marker ? marker.getLatLng().lat : null;
+let lon = marker ? marker.getLatLng().lng : null;
+
+let coordText = lat ? toDMS(lat,true)+" | "+toDMS(lon,false) : "Sem localização";
+
 let id = Date.now();
 
-let photoObj = {
-id,
-base64: ev.target.result,
-caption:"",
-lat: document.getElementById('lat').value,
-lon: document.getElementById('lon').value
-};
+photosData.push({
+id,base64:e.target.result,caption:"",
+lat,lon,coordText
+});
 
-photosData.push(photoObj);
-
-let div = document.createElement("div");
+let div=document.createElement("div");
 div.className="photo";
 
-div.innerHTML = `
+div.innerHTML=`
 <b>Figura ${photoCount}</b><br>
-<img src="${ev.target.result}" width="250"><br>
-Legenda: <input onchange="updateCaption(${id}, this.value)">
+<img src="${e.target.result}" width="250"><br>
+Localização: ${coordText}<br>
+Legenda: <input onchange="updateCaption(${id},this.value)">
 `;
 
-document.getElementById('photoList').appendChild(div);
+photoList.appendChild(div);
 
 };
 
@@ -201,30 +207,31 @@ reader.readAsDataURL(file);
 }
 
 function updateCaption(id,value){
-let p = photosData.find(p=>p.id===id);
-p.caption = value;
+let p=photosData.find(p=>p.id===id);
+p.caption=value;
 }
 
-// KMZ COM FOTOS
+// KMZ CORRIGIDO
 function exportKMZ(){
 
-let zip = new JSZip();
+let zip=new JSZip();
 
-let kml = `<kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
+let kml=`<kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
 
 photosData.forEach((p,i)=>{
 
-let imgName = `foto${i}.jpg`;
-let base64 = p.base64.split(',')[1];
+let img=`foto${i}.jpg`;
+let base64=p.base64.split(',')[1];
 
-zip.file(imgName, base64, {base64:true});
+zip.file(img,base64,{base64:true});
 
-kml += `
+kml+=`
 <Placemark>
 <name>Foto ${i+1}</name>
 <description><![CDATA[
-<img src="${imgName}" width="300"><br>
-${p.caption}
+<img src="${img}" width="300"><br>
+${p.caption}<br>
+${p.coordText}
 ]]></description>
 <Point>
 <coordinates>${p.lon},${p.lat},0</coordinates>
@@ -232,17 +239,16 @@ ${p.caption}
 </Placemark>`;
 });
 
-kml += `</Document></kml>`;
+kml+=`</Document></kml>`;
 
-zip.file("doc.kml", kml);
+zip.file("doc.kml",kml);
 
 zip.generateAsync({type:"blob"}).then(content=>{
-let a = document.createElement("a");
-a.href = URL.createObjectURL(content);
-a.download = "relatorio.kmz";
+let a=document.createElement("a");
+a.href=URL.createObjectURL(content);
+a.download="relatorio.kmz";
 a.click();
 });
-
 }
 
 </script>
