@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Relatório Fotográfico Ambiental - Versão 1.0</title>
+<title>Relatório Fotográfico Ambiental</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -217,14 +217,14 @@ button:hover { background-color: #004d00; }
 <h3>Registro Fotográfico</h3>
 
 <div class="no-print">
-    <button onclick="abrirGaleria()">Anexar Arquivo (Galeria)</button>
-    <button onclick="abrirCamera()" style="background-color: #005580;">📷 Tirar Foto na Hora</button>
+    <button onclick="document.getElementById('fileInput').click()">Anexar Arquivo (Galeria)</button>
+    <button onclick="document.getElementById('cameraInput').click()" style="background-color: #005580;">📷 Tirar Foto na Hora</button>
     
-    <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
-    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
+    <input type="file" id="fileInput" multiple accept="image/*" style="display:none" onchange="processarArquivos(this.files, false)">
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="processarArquivos(this.files, true)">
     
     <p style="font-size:12px; color:#666;">
-        * O sistema prioriza as coordenadas do arquivo (EXIF). Caso não existam (ex: fotos tiradas na hora), utilizará o GPS do aparelho.
+        * Fotos da galeria usarão apenas os metadados (EXIF). Fotos tiradas na hora tentarão usar o GPS do dispositivo caso o EXIF seja limpo pelo navegador.
     </p>
 </div>
 
@@ -238,7 +238,7 @@ button:hover { background-color: #004d00; }
 </div>
 
 <script>
-// Inicialização dos Mapas
+// ================= MAPAS E INICIALIZAÇÃO =================
 let map = L.map('map').setView([-14.7, -39.3], 10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 L.control.scale({metric: true, imperial: false, position: 'bottomleft'}).addTo(map);
@@ -277,8 +277,10 @@ omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
 
 let photoMarkersGroup = L.featureGroup().addTo(map);
 let insetMarkersGroup = L.featureGroup().addTo(insetMap);
+
+// ================= ESTADO DA APLICAÇÃO =================
 let photosData = [];
-let photoCount = 0;
+let photoIdCounter = 0;
 
 window.onload = function() {
     let now = new Date();
@@ -286,6 +288,7 @@ window.onload = function() {
     document.getElementById('hora').value = now.toTimeString().substring(0, 5);
 };
 
+// Conversão Decimal para Graus, Minutos e Segundos
 function toDMS(deg, lat) {
     let d = Math.floor(Math.abs(deg));
     let m = Math.floor((Math.abs(deg) - d) * 60);
@@ -294,16 +297,10 @@ function toDMS(deg, lat) {
     return `${d}°${m}'${s}" ${dir}`;
 }
 
-// Controles dos botões de Anexo e Câmera
-function abrirGaleria() { document.getElementById('fileInput').click(); }
-function abrirCamera() { document.getElementById('cameraInput').click(); }
-
-document.getElementById('fileInput').addEventListener('change', e => processarArquivos(e.target.files));
-document.getElementById('cameraInput').addEventListener('change', e => processarArquivos(e.target.files));
-
-function processarArquivos(files) {
+// ================= PROCESSAMENTO DE IMAGENS =================
+function processarArquivos(files, isCamera) {
     if ((photosData.length + files.length) > 15) { 
-        alert("Recomendado máximo de 15 fotos para não sobrecarregar a memória/PDF."); 
+        alert("Atenção: Limite recomendado de 15 fotos para não sobrecarregar o PDF/Navegador."); 
     }
 
     Array.from(files).forEach(file => {
@@ -312,13 +309,13 @@ function processarArquivos(files) {
         reader.onload = e => {
             let base64 = e.target.result;
             
-            // Tenta puxar do EXIF primeiro
             EXIF.getData(file, function() {
                 let latExif = EXIF.getTag(this, "GPSLatitude");
                 let lonExif = EXIF.getTag(this, "GPSLongitude");
                 let latRef = EXIF.getTag(this, "GPSLatitudeRef");
                 let lonRef = EXIF.getTag(this, "GPSLongitudeRef");
 
+                // Função segura de conversão EXIF
                 function convertExifToDecimal(dmsArray, ref) {
                     if (!dmsArray || dmsArray.length < 3) return null;
                     let d = dmsArray[0].valueOf();
@@ -332,18 +329,25 @@ function processarArquivos(files) {
                 let lat = convertExifToDecimal(latExif, latRef);
                 let lon = convertExifToDecimal(lonExif, lonRef);
 
-                if (lat && lon) {
-                    // Achou no EXIF
-                    renderizarFotoHtml(base64, lat, lon, "Metadados/EXIF da Imagem");
+                if (lat !== null && lon !== null) {
+                    // Tem EXIF!
+                    adicionarFotoNoEstado(base64, lat, lon, "Metadados EXIF da Imagem");
                 } else {
-                    // Não achou no EXIF (comum em fotos tiradas na hora), usa o GPS do dispositivo
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(
-                            pos => renderizarFotoHtml(base64, pos.coords.latitude, pos.coords.longitude, "GPS do Dispositivo no momento da captura"),
-                            err => renderizarFotoHtml(base64, null, null, "Não foi possível obter localização")
-                        );
+                    // Sem EXIF
+                    if (isCamera) {
+                        // Foto tirada na hora -> Puxar GPS do aparelho
+                        if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                                pos => adicionarFotoNoEstado(base64, pos.coords.latitude, pos.coords.longitude, "GPS Atual do Dispositivo"),
+                                err => adicionarFotoNoEstado(base64, null, null, "Erro ao obter GPS do dispositivo")
+                            );
+                        } else {
+                            adicionarFotoNoEstado(base64, null, null, "GPS do dispositivo indisponível");
+                        }
                     } else {
-                        renderizarFotoHtml(base64, null, null, "Sem localização");
+                        // Foto da Galeria -> RESSALVA, não usa o GPS de agora!
+                        alert("⚠️ RESSALVA: A imagem inserida da galeria não contém metadados de localização (GPS). O local não será preenchido para evitar dados falsos.");
+                        adicionarFotoNoEstado(base64, null, null, "Coordenadas não registradas no arquivo");
                     }
                 }
             });
@@ -351,53 +355,91 @@ function processarArquivos(files) {
         reader.readAsDataURL(file);
     });
     
-    // Reseta inputs
     document.getElementById('fileInput').value = '';
     document.getElementById('cameraInput').value = '';
 }
 
-// Função isolada para criar o HTML e o marcador (evita duplicação de código)
-function renderizarFotoHtml(base64, lat, lon, origemLoc) {
-    photoCount++;
-    let id = Date.now() + photoCount;
-    let coordText = "Sem localização";
-
-    if (lat && lon) {
-        coordText = `${toDMS(lat, true)} | ${toDMS(lon, false)}`;
-        
-        let marker = L.marker([lat, lon]).addTo(photoMarkersGroup);
-        marker.bindTooltip("Figura " + photoCount, {
-            permanent: true, direction: 'top', className: 'marker-tooltip', offset: [0, -25]
-        }).openTooltip();
-
-        L.circleMarker([lat, lon], {
-            radius: 4, color: 'red', fillColor: '#f03', fillOpacity: 0.8
-        }).addTo(insetMarkersGroup);
-        
-        map.setView([lat, lon], 14);
-    }
-
-    photosData.push({ id, base64, caption: "", lat, lon, coordText });
-
-    let div = document.createElement("div");
-    div.className = "photo";
-    div.innerHTML = `
-        <b>Figura ${photoCount}</b><br>
-        <img src="${base64}"><br>
-        <span style="font-size:12px; color:#555;">📍 Localização (${origemLoc}): ${coordText}</span><br>
-        <div style="margin-top:10px;">
-            <label>Legenda da imagem:</label><br>
-            <input type="text" placeholder="Descreva o que é visto nesta foto..." onchange="updateCaption(${id}, this.value)">
-        </div>
-    `;
-    document.getElementById('photoList').appendChild(div);
+// Salva a foto no array de dados e chama a recriação da interface
+function adicionarFotoNoEstado(base64, lat, lon, origemLoc) {
+    photoIdCounter++;
+    photosData.push({
+        id: photoIdCounter,
+        base64: base64,
+        lat: lat,
+        lon: lon,
+        origemLoc: origemLoc,
+        caption: ""
+    });
+    renderizarInterface();
 }
 
+// Função para remover foto pelo ID
+function removerFoto(id) {
+    if(confirm("Deseja realmente remover esta fotografia?")) {
+        photosData = photosData.filter(p => p.id !== id);
+        renderizarInterface();
+    }
+}
+
+// Atualiza a legenda em tempo real no estado
 function updateCaption(id, value) {
     let p = photosData.find(p => p.id === id);
     if(p) p.caption = value;
 }
 
+// ================= RENDERIZAÇÃO DA INTERFACE E MAPA =================
+function renderizarInterface() {
+    let listDiv = document.getElementById('photoList');
+    listDiv.innerHTML = ''; // Limpa as fotos atuais
+    
+    photoMarkersGroup.clearLayers(); // Limpa marcadores
+    insetMarkersGroup.clearLayers();
+    
+    let bounds = [];
+
+    // Recria as fotos garantindo ordem (Figura 1, Figura 2...)
+    photosData.forEach((p, index) => {
+        let figNum = index + 1;
+        let coordText = "Sem localização detectada";
+        let isLocalizado = (p.lat !== null && p.lon !== null);
+
+        if (isLocalizado) {
+            coordText = `${toDMS(p.lat, true)} | ${toDMS(p.lon, false)}`;
+            
+            let marker = L.marker([p.lat, p.lon]).addTo(photoMarkersGroup);
+            marker.bindTooltip("Figura " + figNum, { permanent: true, direction: 'top', className: 'marker-tooltip', offset: [0, -25] }).openTooltip();
+
+            L.circleMarker([p.lat, p.lon], { radius: 4, color: 'red', fillColor: '#f03', fillOpacity: 0.8 }).addTo(insetMarkersGroup);
+            
+            bounds.push([p.lat, p.lon]);
+        }
+
+        let div = document.createElement("div");
+        div.className = "photo";
+        div.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <b>Figura ${figNum}</b>
+                <button class="no-print" style="background-color:#c82333; padding:5px 10px; margin:0;" onclick="removerFoto(${p.id})">🗑️ Remover</button>
+            </div>
+            <img src="${p.base64}"><br>
+            <span style="font-size:12px; font-weight:bold; color:${isLocalizado ? '#555' : '#c82333'};">
+                📍 Localização (${p.origemLoc}): ${coordText}
+            </span><br>
+            <div style="margin-top:10px;">
+                <label>Legenda da imagem:</label><br>
+                <input type="text" placeholder="Descreva o que é visto nesta foto..." value="${p.caption}" onchange="updateCaption(${p.id}, this.value)">
+            </div>
+        `;
+        listDiv.appendChild(div);
+    });
+
+    // Centraliza o mapa
+    if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    }
+}
+
+// ================= EXPORTAÇÃO E IMPRESSÃO =================
 function ajustarMapaParaImpressao() {
     document.getElementById('print-servidores').innerHTML = document.getElementById('servidores').value.replace(/\n/g, '<br>');
     document.getElementById('print-descricao').innerHTML = document.getElementById('descricao').value.replace(/\n/g, '<br>');
@@ -417,15 +459,19 @@ function exportKMZ() {
     let zip = new JSZip();
     let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Relatório Fotográfico</name>`;
 
-    photosData.forEach((p, i) => {
+    photosData.forEach((p, index) => {
+        let figNum = index + 1;
         if (!p.lat || !p.lon) return; 
-        let img = `foto${i+1}.jpg`;
+        
+        let img = `foto${figNum}.jpg`;
         let base64 = p.base64.split(',')[1];
         zip.file(img, base64, {base64: true});
 
+        let coordText = `${toDMS(p.lat, true)} | ${toDMS(p.lon, false)}`;
+
         kml += `<Placemark>
-            <name>Figura ${i+1}</name>
-            <description><![CDATA[<img src="${img}" width="300"><br><b>Legenda:</b> ${p.caption}<br><b>Coordenadas:</b> ${p.coordText}]]></description>
+            <name>Figura ${figNum}</name>
+            <description><![CDATA[<img src="${img}" width="300"><br><b>Legenda:</b> ${p.caption}<br><b>Coordenadas:</b> ${coordText}]]></description>
             <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
         </Placemark>`;
     });
