@@ -12,7 +12,8 @@
 <style>
 body { font-family: Arial; margin:20px;}
 #map { height:400px; margin:10px 0;}
-.photo { margin:10px 0;}
+.photo { margin:10px 0; border:1px solid #ccc; padding:10px;}
+.btn { padding:8px; margin:5px; cursor:pointer;}
 </style>
 </head>
 
@@ -20,8 +21,9 @@ body { font-family: Arial; margin:20px;}
 
 <h2>Relatório Fotográfico Ambiental</h2>
 
-Data: <input type="date" id="data"><br><br>
-Hora: <input type="time" id="hora"><br><br>
+<!-- ================== INFORMAÇÕES INICIAIS ================== -->
+Data: <input type="date" id="data" readonly><br><br>
+Hora: <input type="time" id="hora" readonly><br><br>
 
 UC:
 <select id="uc">
@@ -32,7 +34,8 @@ UC:
 
 Local: <input type="text" id="local"><br><br>
 
-<button onclick="getLocation()">Obter localização</button>
+<button class="btn" onclick="getLocation()">Obter localização</button>
+<button class="btn" onclick="manualCoords()">Inserir coordenadas manualmente</button><br><br>
 
 Lat: <input id="lat" readonly>
 Lon: <input id="lon" readonly>
@@ -41,24 +44,61 @@ Lon: <input id="lon" readonly>
 
 <hr>
 
-<h3>Fotos</h3>
-<input type="file" id="photos" multiple accept="image/*"><br><br>
+<!-- ================== PROCESSO ================== -->
+<h3>Informações sobre o Processo</h3>
+
+Número do processo:<br>
+<input type="text" id="processo"><br><br>
+
+Assunto:<br>
+<select id="assunto">
+<option>Área embargada</option>
+<option>Auto de Infração</option>
+<option>Autorização Direta</option>
+<option>Regularização Fundiária</option>
+<option>Denúncia</option>
+</select><br><br>
+
+Descrição:<br>
+<textarea id="descricao" rows="5" style="width:100%"></textarea>
+
+<hr>
+
+<!-- ================== FOTOS ================== -->
+<h3>Registro Fotográfico</h3>
+
+<button class="btn" onclick="abrirGaleria()">Adicionar imagem do celular</button>
+<button class="btn" onclick="abrirCamera()">Fazer registro fotográfico</button>
+
+<input type="file" id="fileInput" accept="image/*" multiple style="display:none">
 
 <div id="photoList"></div>
 
-<button onclick="exportKMZ()">Exportar KMZ</button>
+<hr>
+
+<button class="btn" onclick="window.print()">Imprimir Relatório (PDF)</button>
+<button class="btn" onclick="exportKMZ()">Exportar KMZ</button>
 
 <script>
 
 let map = L.map('map').setView([-14.7,-39.3],10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// carregar KML
+// KML base
 omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
 
 let marker;
 let photosData = [];
+let photoCount = 0;
 
+// DATA AUTOMÁTICA
+window.onload = function(){
+let now = new Date();
+document.getElementById('data').value = now.toISOString().split('T')[0];
+document.getElementById('hora').value = now.toTimeString().substring(0,5);
+};
+
+// GEOLOCALIZAÇÃO
 function getLocation(){
 navigator.geolocation.getCurrentPosition(pos=>{
 let lat = pos.coords.latitude;
@@ -68,21 +108,58 @@ document.getElementById('lat').value = lat;
 document.getElementById('lon').value = lon;
 
 if(marker) map.removeLayer(marker);
-
 marker = L.marker([lat,lon]).addTo(map);
 map.setView([lat,lon],15);
 });
 }
 
-// adicionar fotos
-document.getElementById('photos').addEventListener('change', function(e){
+// MANUAL
+function manualCoords(){
+let lat = prompt("Latitude:");
+let lon = prompt("Longitude:");
+
+if(lat && lon){
+document.getElementById('lat').value = lat;
+document.getElementById('lon').value = lon;
+
+if(marker) map.removeLayer(marker);
+marker = L.marker([lat,lon]).addTo(map);
+map.setView([lat,lon],15);
+}
+}
+
+// GALERIA
+function abrirGaleria(){
+document.getElementById('fileInput').click();
+}
+
+// CAMERA
+function abrirCamera(){
+let input = document.createElement('input');
+input.type = 'file';
+input.accept = 'image/*';
+input.capture = 'environment';
+
+input.onchange = e=>{
+handleFiles(e.target.files);
+};
+
+input.click();
+}
+
+// PROCESSAR FOTOS
+document.getElementById('fileInput').addEventListener('change', e=>{
+handleFiles(e.target.files);
+});
+
+function handleFiles(files){
 
 if(photosData.length >= 10){
-alert("Máximo 10 fotos");
+alert("Máximo de 10 fotos");
 return;
 }
 
-Array.from(e.target.files).forEach((file,i)=>{
+Array.from(files).forEach(file=>{
 
 if(photosData.length >= 10) return;
 
@@ -90,22 +167,26 @@ let reader = new FileReader();
 
 reader.onload = function(ev){
 
+photoCount++;
+
 let id = Date.now();
 
-photosData.push({
+let photoObj = {
 id,
-file,
 base64: ev.target.result,
 caption:"",
 lat: document.getElementById('lat').value,
 lon: document.getElementById('lon').value
-});
+};
+
+photosData.push(photoObj);
 
 let div = document.createElement("div");
 div.className="photo";
 
 div.innerHTML = `
-<img src="${ev.target.result}" width="200"><br>
+<b>Figura ${photoCount}</b><br>
+<img src="${ev.target.result}" width="250"><br>
 Legenda: <input onchange="updateCaption(${id}, this.value)">
 `;
 
@@ -117,28 +198,23 @@ reader.readAsDataURL(file);
 
 });
 
-});
+}
 
-function updateCaption(id, value){
+function updateCaption(id,value){
 let p = photosData.find(p=>p.id===id);
 p.caption = value;
 }
 
-// EXPORTAR KMZ COM FOTOS
+// KMZ COM FOTOS
 function exportKMZ(){
 
 let zip = new JSZip();
 
-let kml = `
-<kml xmlns="http://www.opengis.net/kml/2.2">
-<Document>
-<name>Relatório</name>
-`;
+let kml = `<kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
 
 photosData.forEach((p,i)=>{
 
 let imgName = `foto${i}.jpg`;
-
 let base64 = p.base64.split(',')[1];
 
 zip.file(imgName, base64, {base64:true});
@@ -153,9 +229,7 @@ ${p.caption}
 <Point>
 <coordinates>${p.lon},${p.lat},0</coordinates>
 </Point>
-</Placemark>
-`;
-
+</Placemark>`;
 });
 
 kml += `</Document></kml>`;
