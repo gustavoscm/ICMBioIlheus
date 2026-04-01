@@ -177,33 +177,45 @@ function abrirCamera(){cameraInput.click();}
 fileInput.addEventListener('change',e=>processarArquivos(e.target.files,"galeria"));
 cameraInput.addEventListener('change',e=>processarArquivos(e.target.files,"camera"));
 
-// PROCESSAMENTO FINAL CORRETO
+// CONVERSÃO EXIF
+function convertExifToDecimal(dmsArray, ref){
+if(!dmsArray || dmsArray.length<3) return null;
+
+function val(x){
+return (typeof x==="object" && x!==null && "numerator" in x)
+? x.numerator/x.denominator
+: Number(x);
+}
+
+let d=val(dmsArray[0]);
+let m=val(dmsArray[1]);
+let s=val(dmsArray[2]);
+
+let dd=d+(m/60)+(s/3600);
+if(ref==="S"||ref==="W") dd*=-1;
+
+return dd;
+}
+
+// PROCESSAMENTO CORRIGIDO
 function processarArquivos(files, origemArquivo){
 
 Array.from(files).forEach(file=>{
 
-let readerExif = new FileReader();
+let reader=new FileReader();
 
-readerExif.onload = function(e){
+reader.onload=e=>{
 
-let arrayBuffer = e.target.result;
-let exifData = EXIF.readFromBinaryFile(arrayBuffer);
+let base64 = e.target.result;
 
-function convert(dms, ref){
-if(!dms) return null;
-let dd=dms[0]+(dms[1]/60)+(dms[2]/3600);
-if(ref==="S"||ref==="W") dd*=-1;
-return dd;
-}
+let img = new Image();
 
-let lat = convert(exifData.GPSLatitude, exifData.GPSLatitudeRef);
-let lon = convert(exifData.GPSLongitude, exifData.GPSLongitudeRef);
+img.onload=function(){
 
-let readerImg = new FileReader();
+EXIF.getData(img,function(){
 
-readerImg.onload = function(e2){
-
-let base64 = e2.target.result;
+let lat=convertExifToDecimal(EXIF.getTag(this,"GPSLatitude"),EXIF.getTag(this,"GPSLatitudeRef"));
+let lon=convertExifToDecimal(EXIF.getTag(this,"GPSLongitude"),EXIF.getTag(this,"GPSLongitudeRef"));
 
 // GALERIA
 if(origemArquivo==="galeria"){
@@ -230,13 +242,15 @@ err=>renderizarFotoHtml(base64,null,null,"Sem localização disponível")
 
 }
 
-};
-
-readerImg.readAsDataURL(file);
+});
 
 };
 
-readerExif.readAsArrayBuffer(file);
+img.src=base64;
+
+};
+
+reader.readAsDataURL(file);
 
 });
 
@@ -244,7 +258,7 @@ fileInput.value='';
 cameraInput.value='';
 }
 
-// RESTANTE IGUAL
+// RENDER
 function renderizarFotoHtml(base64,lat,lon,origem){
 
 photoCount++;
@@ -305,6 +319,7 @@ let p=photosData.find(p=>p.id===id);
 if(p) p.caption=val;
 }
 
+// AJUSTE MAPA PDF
 function ajustarMapaParaImpressao(){
 let coords = photosData.filter(p=>p.lat && p.lon).map(p=>[p.lat,p.lon]);
 if(coords.length){
@@ -317,6 +332,7 @@ ajustarMapaParaImpressao();
 setTimeout(()=>window.print(),800);
 }
 
+// KMZ
 function exportKMZ(){
 
 let zip=new JSZip();
