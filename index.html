@@ -174,193 +174,300 @@ return `${d}°${m}'${s}" ${dir}`;
 function abrirGaleria(){fileInput.click();}
 function abrirCamera(){cameraInput.click();}
 
-fileInput.addEventListener('change',e=>processarArquivos(e.target.files,"galeria"));
-cameraInput.addEventListener('change',e=>processarArquivos(e.target.files,"camera"));
-
-// CONVERSÃO EXIF
+// FUNÇÃO CORRIGIDA PARA CONVERSÃO DE COORDENADAS EXIF
 function convertExifToDecimal(dmsArray, ref){
-if(!dmsArray || dmsArray.length<3) return null;
-
-function val(x){
-return (typeof x==="object" && x!==null && "numerator" in x)
-? x.numerator/x.denominator
-: Number(x);
+    if(!dmsArray || dmsArray.length < 3) return null;
+    
+    try {
+        // Extrai graus, minutos e segundos
+        let degrees = parseFloat(dmsArray[0]) || 0;
+        let minutes = parseFloat(dmsArray[1]) || 0;
+        let seconds = parseFloat(dmsArray[2]) || 0;
+        
+        // Calcula decimal
+        let decimal = degrees + (minutes / 60) + (seconds / 3600);
+        
+        // Aplica direção (S ou W)
+        if(ref === "S" || ref === "W") {
+            decimal = -decimal;
+        }
+        
+        return decimal;
+    } catch(e) {
+        console.error("Erro na conversão de coordenadas:", e);
+        return null;
+    }
 }
 
-let d=val(dmsArray[0]);
-let m=val(dmsArray[1]);
-let s=val(dmsArray[2]);
-
-let dd=d+(m/60)+(s/3600);
-if(ref==="S"||ref==="W") dd*=-1;
-
-return dd;
+// FUNÇÃO CORRIGIDA PARA EXTRAIR GPS DA IMAGEM
+function extrairGPSDoEXIF(file, callback) {
+    // Cria um objeto FileReader
+    let reader = new FileReader();
+    
+    reader.onload = function(e) {
+        let arrayBuffer = e.target.result;
+        
+        // Usa EXIF.js para ler os dados do arquivo
+        EXIF.getData(arrayBuffer, function() {
+            try {
+                // Extrai tags GPS
+                let gpsLat = EXIF.getTag(this, "GPSLatitude");
+                let gpsLatRef = EXIF.getTag(this, "GPSLatitudeRef");
+                let gpsLong = EXIF.getTag(this, "GPSLongitude");
+                let gpsLongRef = EXIF.getTag(this, "GPSLongitudeRef");
+                
+                let lat = null;
+                let lon = null;
+                
+                // Converte latitude se disponível
+                if(gpsLat && gpsLatRef) {
+                    lat = convertExifToDecimal(gpsLat, gpsLatRef);
+                }
+                
+                // Converte longitude se disponível
+                if(gpsLong && gpsLongRef) {
+                    lon = convertExifToDecimal(gpsLong, gpsLongRef);
+                }
+                
+                // Cria URL da imagem para visualização
+                let imgUrl = URL.createObjectURL(file);
+                
+                callback({
+                    sucesso: true,
+                    latitude: lat,
+                    longitude: lon,
+                    url: imgUrl
+                });
+            } catch(err) {
+                console.error("Erro ao extrair EXIF:", err);
+                callback({
+                    sucesso: false,
+                    erro: err.message,
+                    url: URL.createObjectURL(file)
+                });
+            }
+        });
+    };
+    
+    reader.onerror = function() {
+        callback({
+            sucesso: false,
+            erro: "Erro ao ler o arquivo"
+        });
+    };
+    
+    reader.readAsArrayBuffer(file);
 }
 
 // PROCESSAMENTO CORRIGIDO
 function processarArquivos(files, origemArquivo){
-
-Array.from(files).forEach(file=>{
-
-let reader=new FileReader();
-
-reader.onload=e=>{
-
-let base64 = e.target.result;
-
-let img = new Image();
-
-img.onload=function(){
-
-EXIF.getData(img,function(){
-
-let lat=convertExifToDecimal(EXIF.getTag(this,"GPSLatitude"),EXIF.getTag(this,"GPSLatitudeRef"));
-let lon=convertExifToDecimal(EXIF.getTag(this,"GPSLongitude"),EXIF.getTag(this,"GPSLongitudeRef"));
-
-// GALERIA
-if(origemArquivo==="galeria"){
-
-if(lat && lon){
-renderizarFotoHtml(base64,lat,lon,"Metadados EXIF");
-}else{
-renderizarFotoHtml(base64,null,null,"Localização não encontrada nos metadados da imagem");
+    Array.from(files).forEach(file=>{
+        
+        if(origemArquivo === "galeria") {
+            // Para imagens da galeria, usa EXIF
+            extrairGPSDoEXIF(file, function(resultado) {
+                if(resultado.sucesso && resultado.latitude && resultado.longitude) {
+                    // Carrega a imagem para exibir
+                    let img = new Image();
+                    img.onload = function() {
+                        renderizarFotoHtml(resultado.url, resultado.latitude, resultado.longitude, "Metadados EXIF", file);
+                        URL.revokeObjectURL(resultado.url);
+                    };
+                    img.src = resultado.url;
+                } else {
+                    // Se não tem GPS, mostra sem localização
+                    let img = new Image();
+                    img.onload = function() {
+                        renderizarFotoHtml(resultado.url, null, null, "Localização não encontrada nos metadados da imagem", file);
+                        URL.revokeObjectURL(resultado.url);
+                    };
+                    img.src = resultado.url;
+                }
+            });
+        }
+        
+        if(origemArquivo === "camera") {
+            // Para fotos da câmera
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                let base64 = e.target.result;
+                let img = new Image();
+                
+                img.onload = function() {
+                    // Tenta extrair EXIF primeiro
+                    EXIF.getData(img, function() {
+                        let lat = null;
+                        let lon = null;
+                        
+                        let gpsLat = EXIF.getTag(this, "GPSLatitude");
+                        let gpsLatRef = EXIF.getTag(this, "GPSLatitudeRef");
+                        let gpsLong = EXIF.getTag(this, "GPSLongitude");
+                        let gpsLongRef = EXIF.getTag(this, "GPSLongitudeRef");
+                        
+                        if(gpsLat && gpsLatRef) {
+                            lat = convertExifToDecimal(gpsLat, gpsLatRef);
+                        }
+                        if(gpsLong && gpsLongRef) {
+                            lon = convertExifToDecimal(gpsLong, gpsLongRef);
+                        }
+                        
+                        if(lat && lon) {
+                            renderizarFotoHtml(base64, lat, lon, "EXIF da câmera", file);
+                        } else {
+                            // Se não tem EXIF, usa GPS do dispositivo
+                            navigator.geolocation.getCurrentPosition(
+                                pos => renderizarFotoHtml(base64, pos.coords.latitude, pos.coords.longitude, "GPS do dispositivo", file),
+                                err => renderizarFotoHtml(base64, null, null, "Sem localização disponível", file)
+                            );
+                        }
+                    });
+                };
+                
+                img.src = base64;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+    });
+    
+    fileInput.value='';
+    cameraInput.value='';
 }
 
-}
-
-// CAMERA
-if(origemArquivo==="camera"){
-
-if(lat && lon){
-renderizarFotoHtml(base64,lat,lon,"EXIF da câmera");
-}else{
-navigator.geolocation.getCurrentPosition(
-pos=>renderizarFotoHtml(base64,pos.coords.latitude,pos.coords.longitude,"GPS do dispositivo"),
-err=>renderizarFotoHtml(base64,null,null,"Sem localização disponível")
-);
-}
-
-}
-
-});
-
-};
-
-img.src=base64;
-
-};
-
-reader.readAsDataURL(file);
-
-});
-
-fileInput.value='';
-cameraInput.value='';
-}
-
-// RENDER
-function renderizarFotoHtml(base64,lat,lon,origem){
-
-photoCount++;
-let id=Date.now()+photoCount;
-
-let coordText="Sem localização";
-let marker=null;
-let insetMarker=null;
-
-if(lat && lon){
-
-coordText=`${toDMS(lat,true)} | ${toDMS(lon,false)}`;
-
-marker=L.marker([lat,lon]).addTo(photoMarkersGroup);
-marker.bindTooltip("Figura "+photoCount,{permanent:true});
-
-insetMarker=L.circleMarker([lat,lon],{radius:4,color:'red'}).addTo(insetMarkersGroup);
-}
-
-let obj={id,base64,caption:"",lat,lon,coordText,marker,insetMarker};
-photosData.push(obj);
-
-let div=document.createElement("div");
-div.className="photo";
-div.id="photo-"+id;
-
-div.innerHTML=`
-<b>Figura ${photoCount}</b><br>
-<img src="${base64}"><br>
-<span style="font-size:12px;">📍 ${origem}: ${coordText}</span><br>
-
-<input placeholder="Legenda..." onchange="updateCaption(${id},this.value)">
-
-<br><br>
-<button style="background:#8B0000;" onclick="removerFoto(${id})">Remover foto</button>
-`;
-
-photoList.appendChild(div);
+// RENDER - FUNÇÃO CORRIGIDA PARA ARMAZENAR O ARQUIVO ORIGINAL
+function renderizarFotoHtml(imagemUrl, lat, lon, origem, arquivoOriginal){
+    photoCount++;
+    let id=Date.now()+photoCount;
+    
+    let coordText="Sem localização";
+    let marker=null;
+    let insetMarker=null;
+    
+    if(lat && lon){
+        coordText=`${toDMS(lat,true)} | ${toDMS(lon,false)}`;
+        
+        marker=L.marker([lat,lon]).addTo(photoMarkersGroup);
+        marker.bindTooltip("Figura "+photoCount,{permanent:true});
+        
+        insetMarker=L.circleMarker([lat,lon],{radius:4,color:'red'}).addTo(insetMarkersGroup);
+    }
+    
+    let obj = {
+        id: id,
+        imagemUrl: imagemUrl,
+        caption: "",
+        lat: lat,
+        lon: lon,
+        coordText: coordText,
+        marker: marker,
+        insetMarker: insetMarker,
+        arquivoOriginal: arquivoOriginal
+    };
+    photosData.push(obj);
+    
+    let div=document.createElement("div");
+    div.className="photo";
+    div.id="photo-"+id;
+    
+    div.innerHTML=`
+        <b>Figura ${photoCount}</b><br>
+        <img src="${imagemUrl}"><br>
+        <span style="font-size:12px;">📍 ${origem}: ${coordText}</span><br>
+        <input placeholder="Legenda..." onchange="updateCaption(${id},this.value)">
+        <br><br>
+        <button style="background:#8B0000;" onclick="removerFoto(${id})">Remover foto</button>
+    `;
+    
+    photoList.appendChild(div);
 }
 
 function removerFoto(id){
-let i=photosData.findIndex(p=>p.id===id);
-if(i===-1) return;
-
-let p=photosData[i];
-
-if(p.marker) photoMarkersGroup.removeLayer(p.marker);
-if(p.insetMarker) insetMarkersGroup.removeLayer(p.insetMarker);
-
-photosData.splice(i,1);
-
-let el=document.getElementById("photo-"+id);
-if(el) el.remove();
+    let i=photosData.findIndex(p=>p.id===id);
+    if(i===-1) return;
+    
+    let p=photosData[i];
+    
+    if(p.marker) photoMarkersGroup.removeLayer(p.marker);
+    if(p.insetMarker) insetMarkersGroup.removeLayer(p.insetMarker);
+    
+    photosData.splice(i,1);
+    
+    let el=document.getElementById("photo-"+id);
+    if(el) el.remove();
 }
 
 function updateCaption(id,val){
-let p=photosData.find(p=>p.id===id);
-if(p) p.caption=val;
+    let p=photosData.find(p=>p.id===id);
+    if(p) p.caption=val;
 }
 
 // AJUSTE MAPA PDF
 function ajustarMapaParaImpressao(){
-let coords = photosData.filter(p=>p.lat && p.lon).map(p=>[p.lat,p.lon]);
-if(coords.length){
-map.fitBounds(coords,{padding:[40,40]});
-}
+    let coords = photosData.filter(p=>p.lat && p.lon).map(p=>[p.lat,p.lon]);
+    if(coords.length){
+        map.fitBounds(coords,{padding:[40,40]});
+    }
 }
 
 function imprimirRelatorio(){
-ajustarMapaParaImpressao();
-setTimeout(()=>window.print(),800);
+    // Atualiza os textos para impressão
+    document.getElementById("print-servidores").innerText = document.getElementById("servidores").value;
+    document.getElementById("print-descricao").innerText = document.getElementById("descricao").value;
+    
+    ajustarMapaParaImpressao();
+    setTimeout(()=>window.print(),800);
 }
 
-// KMZ
+// KMZ CORRIGIDO
 function exportKMZ(){
-
-let zip=new JSZip();
-let kml=`<kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
-
-photosData.forEach((p,i)=>{
-if(!p.lat || !p.lon) return;
-
-let img=`foto${i}.jpg`;
-zip.file(img,p.base64.split(',')[1],{base64:true});
-
-kml+=`<Placemark>
-<name>Figura ${i+1}</name>
-<description><![CDATA[<img src="${img}" width="300"><br>${p.caption}<br>${p.coordText}]]></description>
-<Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
-</Placemark>`;
-});
-
-kml+=`</Document></kml>`;
-zip.file("doc.kml",kml);
-
-zip.generateAsync({type:"blob"}).then(content=>{
-let a=document.createElement("a");
-a.href=URL.createObjectURL(content);
-a.download="relatorio.kmz";
-a.click();
-});
+    let zip=new JSZip();
+    let kml=`<?xml version="1.0" encoding="UTF-8"?>
+    <kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+    <name>Relatório Fotográfico Ambiental</name>`;
+    
+    photosData.forEach((p,i)=>{
+        if(!p.lat || !p.lon) return;
+        
+        let imgName = `foto${i+1}.jpg`;
+        
+        // Converte base64 para blob
+        if(p.imagemUrl && p.imagemUrl.startsWith('data:image')) {
+            let base64Data = p.imagemUrl.split(',')[1];
+            zip.file(imgName, base64Data, {base64: true});
+        }
+        
+        kml+=`
+        <Placemark>
+            <name>Figura ${i+1}</name>
+            <description><![CDATA[
+                <img src="${imgName}" width="300"><br>
+                <b>Legenda:</b> ${p.caption || "Sem legenda"}<br>
+                <b>Coordenadas:</b> ${p.coordText}
+            ]]></description>
+            <Point>
+                <coordinates>${p.lon},${p.lat},0</coordinates>
+            </Point>
+        </Placemark>`;
+    });
+    
+    kml+=`
+    </Document>
+    </kml>`;
+    
+    zip.file("doc.kml", kml);
+    
+    zip.generateAsync({type:"blob"}).then(content=>{
+        let a=document.createElement("a");
+        a.href=URL.createObjectURL(content);
+        a.download=`relatorio_${new Date().toISOString().slice(0,19)}.kmz`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    });
 }
+
+fileInput.addEventListener('change',e=>processarArquivos(e.target.files,"galeria"));
+cameraInput.addEventListener('change',e=>processarArquivos(e.target.files,"camera"));
 
 </script>
 
