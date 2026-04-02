@@ -10,12 +10,8 @@
 <script src="jszip.min.js"></script>
 <script src="exif-js.js"></script>
 
-<!-- MBTiles suporte -->
-<script src="sql.js"></script>
-<script src="Leaflet.TileLayer.MBTiles.js"></script>
-
 <style>
-/* (SEU CSS ORIGINAL MANTIDO) */
+/* SEU CSS ORIGINAL MANTIDO */
 body { font-family: Arial, sans-serif; margin: 20px auto; max-width: 900px; color: #333;}
 h2, h3 { color: #006400; }
 .header { display:flex; align-items:center; border-bottom:3px solid #006400; padding-bottom:15px; margin-bottom:20px;}
@@ -100,82 +96,97 @@ textarea { display:none;}
 <div id="mapInset"></div>
 </div>
 
+<h3>Informações sobre o Processo</h3>
+
+<div class="form-group">
+<label>Número do processo:</label>
+<input type="text" id="processo">
+</div>
+
+<div class="form-group">
+<label>Assunto:</label>
+<select id="assunto">
+<option>Área embargada</option>
+<option>Auto de Infração</option>
+<option>Autorização Direta</option>
+<option>Regularização Fundiária</option>
+<option>Denúncia</option>
+</select>
+</div>
+
+<div class="form-group">
+<label>Descrição:</label>
+<textarea id="descricao"></textarea>
+<div class="print-only-text" id="print-descricao"></div>
+</div>
+
 <h3>Registro Fotográfico</h3>
 
 <div class="no-print">
 <button onclick="abrirCamera()">📷 Tirar Foto</button>
-<input type="file" id="cameraInput" accept="image/*" style="display:none">
+<input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
 </div>
 
 <div id="photoList"></div>
 
+<div class="no-print">
+<button onclick="imprimirRelatorio()">Gerar PDF</button>
+<button onclick="exportKMZ()">Exportar KMZ</button>
+</div>
+
 <script>
 
 // =======================
-// MAPA ONLINE / OFFLINE
+// MAPA ONLINE + OFFLINE
 // =======================
 
 let map = L.map('map').setView([-14.7,-39.3],10);
 let insetMap = L.map('mapInset',{zoomControl:false, attributionControl:false});
 
-// DETECTA INTERNET
-function isOnline(){
-    return navigator.onLine;
-}
+if (navigator.onLine) {
 
-// ONLINE (OpenStreetMap)
-if(isOnline()){
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
         maxZoom:19
     }).addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-    .addTo(insetMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        maxZoom:19
+    }).addTo(insetMap);
 
-}else{
-    // OFFLINE - tentar MBTiles
-    try{
-        let mb = new L.TileLayer.MBTiles('map.mbtiles');
-        mb.addTo(map);
-        mb.addTo(insetMap);
-    }catch(e){
-        console.warn("MBTiles não carregado", e);
-    }
+} else {
+
+    L.tileLayer('./tiles/{z}/{x}/{y}.png',{
+        maxZoom:19
+    }).addTo(map);
+
+    L.tileLayer('./tiles/{z}/{x}/{y}.png',{
+        maxZoom:19
+    }).addTo(insetMap);
+
 }
 
 // =======================
 // KML
 // =======================
 try {
+    omnivore.kml('UCs_NGI Ilheus.kml')
+        .on('ready', function() {
+            insetMap.fitBounds(this.getBounds());
+        })
+        .addTo(insetMap);
+
     omnivore.kml('UCs_NGI Ilheus.kml').addTo(map);
-    omnivore.kml('UCs_NGI Ilheus.kml').addTo(insetMap);
+
 } catch(e) {
-    console.warn('Erro KML', e);
+    console.warn('Erro ao carregar KML:', e);
 }
 
 // =======================
-// FOTO / EXIF ROBUSTO
+// FOTO (CORRIGIDO)
 // =======================
 
-let photosData=[];
-let photoCount=0;
+function abrirCamera(){cameraInput.click();}
 
-function abrirCamera(){
-    cameraInput.click();
-}
-
-// CONVERSÃO EXIF
-function convertExifToDecimal(dmsArray, ref){
-    if(!dmsArray) return null;
-    let d = dmsArray[0];
-    let m = dmsArray[1];
-    let s = dmsArray[2];
-    let dec = d + m/60 + s/3600;
-    if(ref==="S"||ref==="W") dec*=-1;
-    return dec;
-}
-
-// PROCESSAMENTO PRINCIPAL
 cameraInput.addEventListener('change', function(e) {
 
     let files = e.target.files;
@@ -184,68 +195,63 @@ cameraInput.addEventListener('change', function(e) {
 
         let reader = new FileReader();
 
-        reader.onload = function(ev){
+        reader.onload = function(ev) {
 
             let base64 = ev.target.result;
-
             let img = new Image();
 
-            img.onload = function(){
+            img.onload = function() {
 
-                let lat=null, lon=null;
+                let lat = null, lon = null;
 
                 function finalizar(origem){
                     renderizarFotoHtml(base64, lat, lon, origem, file);
                 }
 
-                // ✔️ EXIF seguro
+                function usarGPS(){
+                    if(navigator.geolocation && location.protocol !== "file:"){
+                        navigator.geolocation.getCurrentPosition(
+                            pos=>{
+                                lat = pos.coords.latitude;
+                                lon = pos.coords.longitude;
+                                finalizar("GPS do dispositivo");
+                            },
+                            err=>{
+                                finalizar("Sem localização disponível");
+                            }
+                        );
+                    } else {
+                        finalizar("Sem localização disponível");
+                    }
+                }
+
                 if(typeof EXIF !== "undefined"){
                     try{
                         EXIF.getData(img, function(){
 
                             let gpsLat = EXIF.getTag(this, "GPSLatitude");
                             let gpsLatRef = EXIF.getTag(this, "GPSLatitudeRef");
-                            let gpsLon = EXIF.getTag(this, "GPSLongitude");
-                            let gpsLonRef = EXIF.getTag(this, "GPSLongitudeRef");
+                            let gpsLong = EXIF.getTag(this, "GPSLongitude");
+                            let gpsLongRef = EXIF.getTag(this, "GPSLongitudeRef");
 
                             if(gpsLat && gpsLatRef)
                                 lat = convertExifToDecimal(gpsLat, gpsLatRef);
 
-                            if(gpsLon && gpsLonRef)
-                                lon = convertExifToDecimal(gpsLon, gpsLonRef);
+                            if(gpsLong && gpsLongRef)
+                                lon = convertExifToDecimal(gpsLong, gpsLongRef);
 
                             if(lat && lon){
-                                finalizar("EXIF");
-                            }else{
-                                usarGeolocalizacao();
+                                finalizar("EXIF da câmera");
+                            } else {
+                                usarGPS();
                             }
 
                         });
-                    }catch(err){
-                        console.error("Erro EXIF", err);
-                        usarGeolocalizacao();
+                    }catch(e){
+                        usarGPS();
                     }
-                }else{
-                    console.warn("EXIF não carregado");
-                    usarGeolocalizacao();
-                }
-
-                function usarGeolocalizacao(){
-                    if(navigator.geolocation && location.protocol === "https:"){
-                        navigator.geolocation.getCurrentPosition(
-                            pos=>{
-                                lat = pos.coords.latitude;
-                                lon = pos.coords.longitude;
-                                finalizar("GPS dispositivo");
-                            },
-                            err=>{
-                                console.warn("GPS bloqueado", err);
-                                finalizar("Sem localização");
-                            }
-                        );
-                    }else{
-                        finalizar("Sem localização");
-                    }
+                } else {
+                    usarGPS();
                 }
 
             };
@@ -256,34 +262,9 @@ cameraInput.addEventListener('change', function(e) {
         reader.readAsDataURL(file);
     });
 
+    cameraInput.value = '';
 });
 
-// RENDER
-function renderizarFotoHtml(imagemUrl, lat, lon, origem){
-
-    photoCount++;
-
-    let coord = "Sem localização";
-
-    if(lat && lon){
-        coord = lat.toFixed(6)+" , "+lon.toFixed(6);
-        L.marker([lat,lon]).addTo(map);
-    }
-
-    let div = document.createElement("div");
-
-    div.className="photo";
-
-    div.innerHTML=`
-        <b>Figura ${photoCount}</b><br>
-        <img src="${imagemUrl}"><br>
-        <small>${origem} | ${coord}</small><br>
-    `;
-
-    photoList.appendChild(div);
-}
-
 </script>
-
 </body>
 </html>
