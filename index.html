@@ -328,7 +328,15 @@ map.fitBounds(coords,{padding:[40,40]});
 }
 
 function imprimirRelatorio(){
+
+// COPIAR TEXTOS PARA VERSÃO DE IMPRESSÃO
+document.getElementById("print-servidores").innerText = document.getElementById("servidores").value;
+document.getElementById("print-descricao").innerText = document.getElementById("descricao").value;
+
+// AJUSTAR MAPA
 ajustarMapaParaImpressao();
+
+// ESPERA PARA RENDERIZAR
 setTimeout(()=>window.print(),800);
 }
 
